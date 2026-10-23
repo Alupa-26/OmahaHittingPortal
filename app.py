@@ -1,9 +1,7 @@
-import base64
 import io
+import hashlib
 import sqlite3
-import dash
-from dash import dcc, html, Input, Output, State, dash_table
-import dash_bootstrap_components as dbc
+import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
@@ -12,17 +10,124 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 
-app = dash.Dash(
-    __name__,
-    external_stylesheets=[
-        dbc.themes.SLATE,
-        "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&display=swap"
-    ],
-    suppress_callback_exceptions=True
+# -----------------------------------------------------------------------------
+# PAGE CONFIG & CUSTOM CSS
+# -----------------------------------------------------------------------------
+st.set_page_config(
+    page_title="Omaha Baseball Analytics",
+    page_icon="⚾",
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
-app.title = "Omaha Baseball Analytics"
-server = app.server
 
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&display=swap');
+
+html, body, [class*="css"] {
+    font-family: 'Inter', sans-serif;
+}
+
+.stApp {
+    background-color: #F8FAFC;
+}
+
+/* Dark Slate Sidebar */
+[data-testid="stSidebar"] {
+    background-color: #0F172A !important;
+}
+[data-testid="stSidebar"] * {
+    color: #FFFFFF;
+}
+[data-testid="stSidebar"] .stSelectbox div[data-baseweb="select"] * {
+    color: #0F172A !important;
+}
+[data-testid="stSidebar"] [data-testid="stFileUploader"] section {
+    background-color: #1E293B !important;
+    border: 2px dashed #D71920 !important;
+    border-radius: 8px !important;
+}
+[data-testid="stSidebar"] [data-testid="stFileUploader"] section * {
+    color: #FFFFFF !important;
+}
+[data-testid="stSidebar"] [data-testid="stFileUploader"] button {
+    background-color: #D71920 !important;
+    color: #FFFFFF !important;
+    border: none !important;
+    font-weight: 700 !important;
+}
+
+/* Header Banner */
+.omaha-header {
+    background: linear-gradient(135deg, #0B0F19 0%, #1A2235 100%);
+    border-radius: 16px;
+    padding: 30px 40px;
+    color: white;
+    margin-bottom: 25px;
+    border-left: 8px solid #D71920;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+}
+.omaha-header h1 {
+    font-size: 42px;
+    font-weight: 900;
+    margin: 0;
+    letter-spacing: -1px;
+    color: #FFFFFF;
+}
+.omaha-header .sub {
+    font-size: 15px;
+    font-weight: 600;
+    color: #94A3B8;
+    letter-spacing: 1px;
+    margin-top: 6px;
+}
+
+/* KPI Grid */
+.kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+    gap: 15px;
+    margin-bottom: 30px;
+}
+.kpi-card {
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 12px;
+    padding: 20px 10px;
+    text-align: center;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.03);
+}
+.kpi-label {
+    font-size: 11px;
+    font-weight: 800;
+    color: #64748B;
+    margin-bottom: 5px;
+}
+.kpi-val {
+    font-size: 26px;
+    font-weight: 900;
+}
+
+/* Tabs Styling */
+button[data-baseweb="tab"] {
+    background-color: #E2E8F0 !important;
+    border-radius: 6px 6px 0 0 !important;
+    padding: 10px 20px !important;
+    margin-right: 6px !important;
+    font-weight: 700 !important;
+    color: #475569 !important;
+}
+button[data-baseweb="tab"][aria-selected="true"] {
+    background-color: #FFFFFF !important;
+    color: #0F172A !important;
+    border-top: 3px solid #D71920 !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# -----------------------------------------------------------------------------
+# DATABASE & CONSTANTS
+# -----------------------------------------------------------------------------
 DB_NAME = "trackman_master.db"
 
 EXPECTED_COLS = [
@@ -68,7 +173,13 @@ def init_db():
 
 init_db()
 
+if "ingested_files" not in st.session_state:
+    st.session_state.ingested_files = set()
 
+
+# -----------------------------------------------------------------------------
+# HELPER FUNCTIONS
+# -----------------------------------------------------------------------------
 def get_batter_side(df_batter):
     if 'BatterSide' not in df_batter.columns:
         return "UNK"
@@ -127,6 +238,19 @@ def assign_field_zone(dist, direction):
             return 'OF_R'
 
 
+def create_wedge_polygon(r_inner, r_outer, theta1, theta2, num_points=40):
+    t1_rad, t2_rad = np.radians(theta1), np.radians(theta2)
+    theta_vals = np.linspace(t1_rad, t2_rad, num_points)
+    x_outer = r_outer * np.sin(theta_vals)
+    y_outer = r_outer * np.cos(theta_vals)
+    x_inner = r_inner * np.sin(theta_vals[::-1])
+    y_inner = r_inner * np.cos(theta_vals[::-1])
+    return np.concatenate([x_outer, x_inner, [x_outer[0]]]), np.concatenate([y_outer, y_inner, [y_outer[0]]])
+
+
+# -----------------------------------------------------------------------------
+# PLOT GENERATORS
+# -----------------------------------------------------------------------------
 def render_3d_stadium(df):
     fig = go.Figure()
     grass_material = dict(ambient=0.8, diffuse=0.9, roughness=0.9, specular=0.1)
@@ -269,6 +393,7 @@ def render_3d_stadium(df):
             ))
 
     fig.update_layout(
+        height=750,
         scene=dict(
             xaxis=dict(range=[-300, 300], visible=False),
             yaxis=dict(range=[-20, 450], visible=False),
@@ -395,6 +520,7 @@ def render_3d_strikezone(df):
             ))
 
     fig.update_layout(
+        height=750,
         scene=dict(
             xaxis=dict(title='Side to Side (ft)', range=[-3, 3], gridcolor='#E2E8F0', backgroundcolor='#F8FAFC', showbackground=True),
             yaxis=dict(title='Depth: Catcher ⬅️ Pitcher (ft)', range=[-1, 4], gridcolor='#E2E8F0', backgroundcolor='#F8FAFC', showbackground=True),
@@ -407,16 +533,6 @@ def render_3d_strikezone(df):
         paper_bgcolor='rgba(0,0,0,0)'
     )
     return fig
-
-
-def create_wedge_polygon(r_inner, r_outer, theta1, theta2, num_points=40):
-    t1_rad, t2_rad = np.radians(theta1), np.radians(theta2)
-    theta_vals = np.linspace(t1_rad, t2_rad, num_points)
-    x_outer = r_outer * np.sin(theta_vals)
-    y_outer = r_outer * np.cos(theta_vals)
-    x_inner = r_inner * np.sin(theta_vals[::-1])
-    y_inner = r_inner * np.cos(theta_vals[::-1])
-    return np.concatenate([x_outer, x_inner, [x_outer[0]]]), np.concatenate([y_outer, y_inner, [y_outer[0]]])
 
 
 def render_2d_field_heatmap(df, metric='ExitSpeed'):
@@ -476,6 +592,7 @@ def render_2d_field_heatmap(df, metric='ExitSpeed'):
 
     title_label = "EXIT SPEED" if metric == 'ExitSpeed' else "LAUNCH ANGLE"
     fig.update_layout(
+        height=550,
         xaxis=dict(visible=False, range=[-300, 300]),
         yaxis=dict(visible=False, range=[-20, 420], scaleanchor='x', scaleratio=1),
         margin=dict(l=0, r=0, b=0, t=40),
@@ -549,6 +666,7 @@ def render_2d_sz_heatmap(df, metric='ExitSpeed'):
 
     title_label = "EXIT SPEED" if metric == 'ExitSpeed' else "LAUNCH ANGLE"
     fig.update_layout(
+        height=550,
         xaxis=dict(visible=False, range=[-2, 2]),
         yaxis=dict(visible=False, range=[0, 4.5], scaleanchor='x', scaleratio=1),
         margin=dict(l=0, r=0, b=0, t=40),
@@ -559,241 +677,155 @@ def render_2d_sz_heatmap(df, metric='ExitSpeed'):
     return fig
 
 
-SIDEBAR_STYLE = {
-    "position": "fixed", "top": 0, "left": 0, "bottom": 0,
-    "width": "22rem", "padding": "2rem 1.5rem",
-    "backgroundColor": "#0F172A", "color": "white", "overflowY": "auto"
-}
+def ingest_uploaded_files(uploaded_files):
+    total_added = 0
+    conn = sqlite3.connect(DB_NAME)
+    for up_file in uploaded_files:
+        raw_bytes = up_file.getvalue()
+        file_hash = hashlib.md5(raw_bytes).hexdigest()
+        if file_hash in st.session_state.ingested_files:
+            continue
 
-CONTENT_STYLE = {
-    "marginLeft": "23rem", "padding": "2rem",
-    "backgroundColor": "#F8FAFC", "minHeight": "100vh"
-}
+        try:
+            df_upload = pd.read_csv(io.BytesIO(raw_bytes), encoding='utf-8-sig', low_memory=False)
+        except Exception:
+            df_upload = pd.read_csv(io.BytesIO(raw_bytes), encoding='latin1', low_memory=False)
 
-sidebar = html.Div([
-    html.Img(
-        src="https://upload.wikimedia.org/wikipedia/en/thumb/0/01/Omaha_Mavericks_logo.svg/1200px-Omaha_Mavericks_logo.svg.png",
-        style={"width": "140px", "display": "block", "margin": "0 auto 30px auto"}
-    ),
+        df_upload.columns = df_upload.columns.str.strip()
+        keep = [c for c in EXPECTED_COLS if c in df_upload.columns]
+        df_cleaned = df_upload[keep].copy()
 
-    html.H5("Data Ingestion", style={"color": "#94A3B8", "fontSize": "13px", "textTransform": "uppercase", "letterSpacing": "1px", "marginBottom": "15px", "fontWeight": "bold"}),
-    dcc.Upload(
-        id='upload-data',
-        children=html.Div(['Drop CSV(s) or ', html.A('Select Files', style={"fontWeight": "bold"})]),
-        multiple=True,
-        style={
-            'width': '100%', 'height': '60px', 'lineHeight': '60px',
-            'borderWidth': '2px', 'borderStyle': 'dashed', 'borderColor': '#D71920',
-            'borderRadius': '8px', 'textAlign': 'center', 'cursor': 'pointer',
-            'backgroundColor': '#1E293B', 'color': 'white'
-        }
-    ),
-    html.Div(id='upload-output', style={"color": "#4ADE80", "fontSize": "13px", "marginTop": "10px", "fontWeight": "bold", "marginBottom": "15px"}),
+        for str_col in ['Batter', 'Pitcher', 'BatterSide', 'PitcherThrows', 'TaggedPitchType', 'PitchCall', 'PlayResult', 'TaggedHitType', 'KorBB', 'Time']:
+            if str_col in df_cleaned.columns:
+                df_cleaned[str_col] = df_cleaned[str_col].astype(str).str.strip().replace({'nan': None, 'None': None, '': None})
 
-    html.Hr(style={"borderColor": "#334155"}),
+        if 'Date' in df_cleaned.columns:
+            parsed_dates = pd.to_datetime(df_cleaned['Date'], errors='coerce')
+            df_cleaned['Date'] = parsed_dates.dt.strftime('%Y-%m-%d').fillna(df_cleaned['Date'].astype(str).str.strip())
 
-    html.H5("Performance Filters", style={"color": "#94A3B8", "fontSize": "13px", "textTransform": "uppercase", "letterSpacing": "1px", "marginBottom": "15px", "fontWeight": "bold"}),
-    html.Label("Hitter Profile", style={"fontSize": "12px", "fontWeight": "600"}),
-    dcc.Dropdown(id='hitter-dropdown', style={"color": "black", "marginBottom": "15px"}),
+        for col in NUMERIC_COLS:
+            if col in df_cleaned.columns:
+                df_cleaned[col] = pd.to_numeric(df_cleaned[col], errors='coerce')
 
-    html.Label("Date Range", style={"fontSize": "12px", "fontWeight": "600"}),
-    dcc.Dropdown(id='date-dropdown', style={"color": "black", "marginBottom": "25px"}),
+        if 'Batter' in df_cleaned.columns:
+            df_cleaned = df_cleaned.dropna(subset=['Batter'])
 
-    html.Hr(style={"borderColor": "#334155"}),
-    dbc.Button("Reset Database", id="reset-db-btn", color="danger", outline=True, size="sm", style={"width": "100%"})
-], style=SIDEBAR_STYLE)
+        existing = pd.read_sql("SELECT Date, Time, PitchNo, Batter FROM trackman_data", conn)
+        if not existing.empty and all(k in df_cleaned.columns for k in ['Date', 'Time', 'PitchNo', 'Batter']):
+            merged = df_cleaned.merge(existing, on=['Date', 'Time', 'PitchNo', 'Batter'], how='left', indicator=True)
+            df_cleaned = df_cleaned[merged['_merge'].values == 'left_only']
 
-main_content = html.Div([
-    html.Div(
-        id="dashboard-header",
-        style={
-            "background": "linear-gradient(135deg, #0B0F19 0%, #1A2235 100%)",
-            "borderRadius": "16px", "padding": "30px 40px", "color": "white",
-            "marginBottom": "30px", "borderLeft": "8px solid #D71920",
-            "boxShadow": "0 20px 25px -5px rgba(0, 0, 0, 0.1)"
-        }
-    ),
-    html.Div(
-        id="kpi-grid",
-        style={
-            "display": "grid",
-            "gridTemplateColumns": "repeat(auto-fit, minmax(140px, 1fr))",
-            "gap": "15px", "marginBottom": "30px"
-        }
-    ),
+        if not df_cleaned.empty:
+            df_cleaned.to_sql('trackman_data', conn, if_exists='append', index=False)
+            total_added += len(df_cleaned)
 
-    dbc.Tabs([
-        dbc.Tab(
-            html.Div([dbc.Row([dbc.Col(dcc.Graph(id='3d-stadium-graph', style={"height": "750px"}), width=12)])], style={"padding": "20px"}),
-            label="🌐 Interactive Spray Chart",
-            tab_style={"backgroundColor": "#E2E8F0", "border": "none"},
-            active_tab_style={"backgroundColor": "white", "color": "#0F172A", "fontWeight": "bold", "borderTop": "3px solid #D71920"}
-        ),
-        dbc.Tab(
-            html.Div([dbc.Row([dbc.Col(dcc.Graph(id='3d-strikezone-graph', style={"height": "750px"}), width=12)])], style={"padding": "20px"}),
-            label="⚾ 3D Strike Zone",
-            tab_style={"backgroundColor": "#E2E8F0", "border": "none"},
-            active_tab_style={"backgroundColor": "white", "color": "#0F172A", "fontWeight": "bold", "borderTop": "3px solid #D71920"}
-        ),
-        dbc.Tab(
-            html.Div([
-                dbc.Row([
-                    dbc.Col(dcc.Graph(id='2d-ev-field', style={"height": "600px"}), width=6),
-                    dbc.Col(dcc.Graph(id='2d-la-field', style={"height": "600px"}), width=6)
-                ]),
-                dbc.Row([
-                    dbc.Col(dcc.Graph(id='2d-ev-sz', style={"height": "600px"}), width=6),
-                    dbc.Col(dcc.Graph(id='2d-la-sz', style={"height": "600px"}), width=6)
-                ], style={"marginTop": "20px"})
-            ], style={"padding": "20px"}),
-            label="🔥 Heatmap Matrices",
-            tab_style={"backgroundColor": "#E2E8F0", "border": "none"},
-            active_tab_style={"backgroundColor": "white", "color": "#0F172A", "fontWeight": "bold", "borderTop": "3px solid #D71920"}
-        ),
-        dbc.Tab(
-            html.Div([
-                html.H4("Raw Event Log", style={"marginBottom": "20px", "fontWeight": "bold", "color": "#0F172A"}),
-                html.Div(id="data-table-container")
-            ], style={"padding": "30px", "backgroundColor": "white", "borderRadius": "8px", "border": "1px solid #E2E8F0"}),
-            label="📊 Performance Tables",
-            tab_style={"backgroundColor": "#E2E8F0", "border": "none"},
-            active_tab_style={"backgroundColor": "white", "color": "#0F172A", "fontWeight": "bold", "borderTop": "3px solid #D71920"}
-        ),
-    ])
-], style=CONTENT_STYLE)
+        st.session_state.ingested_files.add(file_hash)
 
-app.layout = html.Div([sidebar, main_content])
+    conn.close()
+    return total_added
 
 
-@app.callback(
-    Output('upload-output', 'children'),
-    [Input('upload-data', 'contents'), Input('reset-db-btn', 'n_clicks')],
-    prevent_initial_call=True
-)
-def process_upload_or_reset(contents, reset_clicks):
-    ctx = dash.callback_context
-    if not ctx.triggered:
-        return ""
-    trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
+# -----------------------------------------------------------------------------
+# SIDEBAR
+# -----------------------------------------------------------------------------
+with st.sidebar:
+    st.markdown(
+        '<img src="https://upload.wikimedia.org/wikipedia/en/thumb/0/01/Omaha_Mavericks_logo.svg/1200px-Omaha_Mavericks_logo.svg.png" '
+        'style="width: 140px; display: block; margin: 0 auto 30px auto;">',
+        unsafe_allow_html=True
+    )
 
-    if trigger_id == 'reset-db-btn':
+    st.markdown(
+        '<div style="color: #94A3B8; font-size: 13px; text-transform: uppercase; '
+        'letter-spacing: 1px; margin-bottom: 10px; font-weight: bold;">Data Ingestion</div>',
+        unsafe_allow_html=True
+    )
+
+    uploaded_files = st.file_uploader(
+        "Drop CSV or Select File",
+        type=["csv"],
+        accept_multiple_files=True,
+        label_visibility="collapsed"
+    )
+
+    if uploaded_files:
+        added_rows = ingest_uploaded_files(uploaded_files)
+        if added_rows > 0:
+            st.markdown(
+                f'<div style="color: #4ADE80; font-size: 13px; font-weight: bold; margin-top: 8px;">'
+                f'✅ Ingested {added_rows} new rows.</div>',
+                unsafe_allow_html=True
+            )
+        else:
+            st.markdown(
+                '<div style="color: #4ADE80; font-size: 13px; font-weight: bold; margin-top: 8px;">'
+                '✅ Data ingested successfully.</div>',
+                unsafe_allow_html=True
+            )
+
+    st.markdown('<hr style="border-color: #334155;">', unsafe_allow_html=True)
+
+    st.markdown(
+        '<div style="color: #94A3B8; font-size: 13px; text-transform: uppercase; '
+        'letter-spacing: 1px; margin-bottom: 15px; font-weight: bold;">Performance Filters</div>',
+        unsafe_allow_html=True
+    )
+
+    conn = sqlite3.connect(DB_NAME)
+    batters_df = pd.read_sql("SELECT DISTINCT Batter FROM trackman_data WHERE Batter IS NOT NULL", conn)
+    conn.close()
+
+    batter_list = sorted(batters_df['Batter'].dropna().unique().tolist()) if not batters_df.empty else []
+
+    selected_hitter = st.selectbox("Hitter Profile", options=batter_list, index=0 if batter_list else None)
+
+    date_list = ["All-Time"]
+    if selected_hitter:
+        conn = sqlite3.connect(DB_NAME)
+        dates_df = pd.read_sql(
+            "SELECT DISTINCT Date FROM trackman_data WHERE Batter = ?",
+            conn,
+            params=(selected_hitter,)
+        )
+        conn.close()
+        if not dates_df.empty:
+            date_list += sorted(dates_df['Date'].dropna().unique().tolist(), reverse=True)
+
+    selected_date = st.selectbox("Date Range", options=date_list, index=0)
+
+    st.markdown('<hr style="border-color: #334155;">', unsafe_allow_html=True)
+    if st.button("🗑️ Reset Database", use_container_width=True):
         conn = sqlite3.connect(DB_NAME)
         conn.execute("DELETE FROM trackman_data")
         conn.commit()
         conn.close()
-        return "🗑️ Database cleared."
+        st.session_state.ingested_files.clear()
+        st.rerun()
 
-    if not contents:
-        return ""
-
-    if not isinstance(contents, list):
-        contents = [contents]
-
-    total_added = 0
-    try:
-        conn = sqlite3.connect(DB_NAME)
-        for content in contents:
-            _, content_string = content.split(',')
-            decoded = base64.b64decode(content_string)
-
-            try:
-                df_upload = pd.read_csv(io.StringIO(decoded.decode('utf-8-sig')), low_memory=False)
-            except Exception:
-                df_upload = pd.read_csv(io.StringIO(decoded.decode('latin1')), low_memory=False)
-
-            df_upload.columns = df_upload.columns.str.strip()
-            keep = [c for c in EXPECTED_COLS if c in df_upload.columns]
-            df_cleaned = df_upload[keep].copy()
-
-            # Clean string columns
-            for str_col in ['Batter', 'Pitcher', 'BatterSide', 'PitcherThrows', 'TaggedPitchType', 'PitchCall', 'PlayResult', 'TaggedHitType', 'KorBB', 'Time']:
-                if str_col in df_cleaned.columns:
-                    df_cleaned[str_col] = df_cleaned[str_col].astype(str).str.strip().replace({'nan': None, 'None': None, '': None})
-
-            # Standardize Date to YYYY-MM-DD for accurate chronological sorting
-            if 'Date' in df_cleaned.columns:
-                parsed_dates = pd.to_datetime(df_cleaned['Date'], errors='coerce')
-                df_cleaned['Date'] = parsed_dates.dt.strftime('%Y-%m-%d').fillna(df_cleaned['Date'].astype(str).str.strip())
-
-            # Coerce numeric columns
-            for col in NUMERIC_COLS:
-                if col in df_cleaned.columns:
-                    df_cleaned[col] = pd.to_numeric(df_cleaned[col], errors='coerce')
-
-            df_cleaned = df_cleaned.dropna(subset=['Batter'])
-
-            # Deduplicate before appending
-            existing = pd.read_sql("SELECT Date, Time, PitchNo, Batter FROM trackman_data", conn)
-            if not existing.empty and all(k in df_cleaned.columns for k in ['Date', 'Time', 'PitchNo', 'Batter']):
-                merged = df_cleaned.merge(existing, on=['Date', 'Time', 'PitchNo', 'Batter'], how='left', indicator=True)
-                df_cleaned = df_cleaned[merged['_merge'].values == 'left_only']
-
-            if not df_cleaned.empty:
-                df_cleaned.to_sql('trackman_data', conn, if_exists='append', index=False)
-                total_added += len(df_cleaned)
-
-        conn.close()
-        return f"✅ Ingested {total_added} new rows."
-    except Exception as e:
-        return f"❌ Error: {str(e)}"
-
-
-@app.callback(
-    [Output('hitter-dropdown', 'options'), Output('hitter-dropdown', 'value')],
-    Input('upload-output', 'children')
-)
-def update_hitters(_):
+# -----------------------------------------------------------------------------
+# MAIN CONTENT AREA
+# -----------------------------------------------------------------------------
+if not selected_hitter:
+    st.markdown("""
+    <div class="omaha-header">
+        <h1>OMAHA HITTING PORTAL</h1>
+        <div class="sub">UPLOAD A TRACKMAN CSV IN THE SIDEBAR TO BEGIN</div>
+    </div>
+    """, unsafe_allow_html=True)
+else:
     conn = sqlite3.connect(DB_NAME)
-    df = pd.read_sql("SELECT DISTINCT Batter FROM trackman_data WHERE Batter IS NOT NULL", conn)
-    conn.close()
-    if df.empty:
-        return [], None
-    batters = sorted(df['Batter'].dropna().unique().tolist())
-    return [{'label': b, 'value': b} for b in batters], batters[0]
-
-
-@app.callback(
-    [Output('date-dropdown', 'options'), Output('date-dropdown', 'value')],
-    Input('hitter-dropdown', 'value')
-)
-def update_dates(hitter):
-    if not hitter:
-        return [], None
-    conn = sqlite3.connect(DB_NAME)
-    df = pd.read_sql("SELECT DISTINCT Date FROM trackman_data WHERE Batter = ?", conn, params=(hitter,))
-    conn.close()
-    dates = ["All-Time"] + sorted(df['Date'].dropna().unique().tolist(), reverse=True)
-    return [{'label': d, 'value': d} for d in dates], "All-Time"
-
-
-@app.callback(
-    [
-        Output('dashboard-header', 'children'),
-        Output('kpi-grid', 'children'),
-        Output('3d-stadium-graph', 'figure'),
-        Output('3d-strikezone-graph', 'figure'),
-        Output('2d-ev-field', 'figure'),
-        Output('2d-la-field', 'figure'),
-        Output('2d-ev-sz', 'figure'),
-        Output('2d-la-sz', 'figure'),
-        Output('data-table-container', 'children')
-    ],
-    [Input('hitter-dropdown', 'value'), Input('date-dropdown', 'value')]
-)
-def update_dashboard(hitter, date):
-    empty_fig = go.Figure()
-    if not hitter:
-        empty_header = html.Div([
-            html.H1("OMAHA HITTING PORTAL", style={"fontSize": "36px", "fontWeight": "900", "margin": 0}),
-            html.Div("UPLOAD A TRACKMAN CSV IN THE SIDEBAR TO BEGIN", style={"fontSize": "14px", "fontWeight": "600", "color": "#94A3B8", "marginTop": "6px"})
-        ])
-        return empty_header, [], empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, ""
-
-    conn = sqlite3.connect(DB_NAME)
-    if date and date != "All-Time":
-        df = pd.read_sql("SELECT * FROM trackman_data WHERE Batter = ? AND Date = ?", conn, params=(hitter, date))
+    if selected_date and selected_date != "All-Time":
+        df = pd.read_sql(
+            "SELECT * FROM trackman_data WHERE Batter = ? AND Date = ?",
+            conn,
+            params=(selected_hitter, selected_date)
+        )
     else:
-        df = pd.read_sql("SELECT * FROM trackman_data WHERE Batter = ?", conn, params=(hitter,))
+        df = pd.read_sql(
+            "SELECT * FROM trackman_data WHERE Batter = ?",
+            conn,
+            params=(selected_hitter,)
+        )
     conn.close()
 
     for col in NUMERIC_COLS:
@@ -804,89 +836,99 @@ def update_dashboard(hitter, date):
     batted_balls = batted_balls[batted_balls['ExitSpeed'] > 0]
 
     if batted_balls.empty:
-        empty_header = html.Div([
-            html.H1(hitter.upper(), style={"fontSize": "42px", "fontWeight": "900", "margin": 0}),
-            html.Div("NO BATTED BALL EVENTS FOUND FOR SELECTION", style={"fontSize": "15px", "fontWeight": "600", "color": "#D71920", "marginTop": "6px"})
-        ])
-        return empty_header, [], empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, ""
+        st.markdown(f"""
+        <div class="omaha-header">
+            <h1>{selected_hitter.upper()}</h1>
+            <div class="sub" style="color: #D71920;">NO BATTED BALL EVENTS FOUND FOR SELECTION</div>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        side = get_batter_side(df)
+        total_swings = len(df[df['PitchCall'].isin(SWING_CALLS)]) if 'PitchCall' in df.columns else len(batted_balls)
+        bip = len(batted_balls)
 
-    side = get_batter_side(df)
-    total_swings = len(df[df['PitchCall'].isin(SWING_CALLS)]) if 'PitchCall' in df.columns else len(batted_balls)
-    bip = len(batted_balls)
+        avg_ev = batted_balls['ExitSpeed'].mean()
+        max_ev = batted_balls['ExitSpeed'].max()
+        ev90 = np.percentile(batted_balls['ExitSpeed'].dropna(), 90)
+        hh_pct = (len(batted_balls[batted_balls['ExitSpeed'] >= 95]) / bip) * 100 if bip > 0 else 0.0
 
-    avg_ev = batted_balls['ExitSpeed'].mean()
-    max_ev = batted_balls['ExitSpeed'].max()
-    ev90 = np.percentile(batted_balls['ExitSpeed'].dropna(), 90)
-    hh_pct = (len(batted_balls[batted_balls['ExitSpeed'] >= 95]) / bip) * 100 if bip > 0 else 0.0
+        valid_angles = batted_balls['Angle'].dropna()
+        swsp_pct = (len(batted_balls[(batted_balls['Angle'] >= 8) & (batted_balls['Angle'] <= 32)]) / bip) * 100 if bip > 0 else 0.0
+        avg_la = valid_angles.mean() if not valid_angles.empty else 0.0
+        std_la = valid_angles.std() if len(valid_angles) > 1 else 0.0
+        avg_dist = batted_balls['Distance'].dropna().mean()
 
-    valid_angles = batted_balls['Angle'].dropna()
-    swsp_pct = (len(batted_balls[(batted_balls['Angle'] >= 8) & (batted_balls['Angle'] <= 32)]) / bip) * 100 if bip > 0 else 0.0
-    avg_la = valid_angles.mean() if not valid_angles.empty else 0.0
-    std_la = valid_angles.std() if len(valid_angles) > 1 else 0.0
-    avg_dist = batted_balls['Distance'].dropna().mean()
+        # Header
+        st.markdown(f"""
+        <div class="omaha-header">
+            <h1>{selected_hitter.upper()}</h1>
+            <div class="sub">BATS: {side} &nbsp;|&nbsp; RANGE: {selected_date} &nbsp;|&nbsp; BATTED BALL EVENTS: {bip}</div>
+        </div>
+        """, unsafe_allow_html=True)
 
-    header = [
-        html.Div([
-            html.H1(hitter.upper(), style={"fontSize": "42px", "fontWeight": "900", "margin": 0, "letterSpacing": "-1px"}),
-            html.Div(
-                f"BATS: {side}  |  RANGE: {date}  |  BATTED BALL EVENTS: {bip}",
-                style={"fontSize": "15px", "fontWeight": "600", "color": "#94A3B8", "letterSpacing": "1px", "marginTop": "6px"}
+        # KPI Cards
+        kpis = [
+            ("TOTAL SWINGS", f"{total_swings}"),
+            ("HARD HIT %", f"{hh_pct:.1f}%"),
+            ("SWEET SPOT %", f"{swsp_pct:.1f}%"),
+            ("AVG EV", f"{avg_ev:.1f}"),
+            ("90th% EV", f"{ev90:.1f}"),
+            ("MAX EV", f"{max_ev:.1f}"),
+            ("AVG LA", f"{avg_la:.1f}°"),
+            ("LA DEV", f"{std_la:.1f}°"),
+            ("AVG DIST", f"{avg_dist:.0f} ft" if not pd.isna(avg_dist) else "N/A")
+        ]
+
+        kpi_html = '<div class="kpi-grid">'
+        for label, val in kpis:
+            val_color = "#D71920" if label in ["90th% EV", "SWEET SPOT %", "HARD HIT %"] else "#0F172A"
+            kpi_html += (
+                f'<div class="kpi-card">'
+                f'<div class="kpi-label">{label}</div>'
+                f'<div class="kpi-val" style="color: {val_color};">{val}</div>'
+                f'</div>'
             )
+        kpi_html += '</div>'
+        st.markdown(kpi_html, unsafe_allow_html=True)
+
+        # Tabs
+        tab1, tab2, tab3, tab4 = st.tabs([
+            "🌐 Interactive Spray Chart",
+            "⚾ 3D Strike Zone",
+            "🔥 Heatmap Matrices",
+            "📊 Performance Tables"
         ])
-    ]
 
-    kpis = [
-        ("TOTAL SWINGS", total_swings),
-        ("HARD HIT %", f"{hh_pct:.1f}%"),
-        ("SWEET SPOT %", f"{swsp_pct:.1f}%"),
-        ("AVG EV", f"{avg_ev:.1f}"),
-        ("90th% EV", f"{ev90:.1f}"),
-        ("MAX EV", f"{max_ev:.1f}"),
-        ("AVG LA", f"{avg_la:.1f}°"),
-        ("LA DEV", f"{std_la:.1f}°"),
-        ("AVG DIST", f"{avg_dist:.0f} ft" if not pd.isna(avg_dist) else "N/A")
-    ]
+        with tab1:
+            fig_field = render_3d_stadium(batted_balls)
+            st.plotly_chart(fig_field, use_container_width=True, theme=None)
 
-    kpi_cards = []
-    for label, val in kpis:
-        val_color = "#D71920" if label in ["90th% EV", "SWEET SPOT %", "HARD HIT %"] else "#0F172A"
-        kpi_cards.append(html.Div([
-            html.Div(label, style={"fontSize": "11px", "fontWeight": "800", "color": "#64748B", "marginBottom": "5px"}),
-            html.Div(val, style={"fontSize": "26px", "fontWeight": "900", "color": val_color})
-        ], style={
-            "background": "#FFFFFF", "border": "1px solid #E2E8F0",
-            "borderRadius": "12px", "padding": "20px 10px",
-            "textAlign": "center", "boxShadow": "0 4px 6px -1px rgba(0,0,0,0.03)"
-        }))
+        with tab2:
+            fig_zone = render_3d_strikezone(batted_balls)
+            st.plotly_chart(fig_zone, use_container_width=True, theme=None)
 
-    fig_field = render_3d_stadium(batted_balls)
-    fig_zone = render_3d_strikezone(batted_balls)
-    fig_ev_field = render_2d_field_heatmap(batted_balls, metric='ExitSpeed')
-    fig_la_field = render_2d_field_heatmap(batted_balls, metric='Angle')
-    fig_ev_sz = render_2d_sz_heatmap(batted_balls, metric='ExitSpeed')
-    fig_la_sz = render_2d_sz_heatmap(batted_balls, metric='Angle')
+        with tab3:
+            col_a, col_b = st.columns(2)
+            with col_a:
+                st.plotly_chart(render_2d_field_heatmap(batted_balls, metric='ExitSpeed'), use_container_width=True, theme=None)
+            with col_b:
+                st.plotly_chart(render_2d_field_heatmap(batted_balls, metric='Angle'), use_container_width=True, theme=None)
 
-    display_cols = [
-        c for c in ['Date', 'PitchNo', 'Pitcher', 'TaggedPitchType', 'ExitSpeed', 'Angle', 'Direction', 'Distance', 'PlayResult']
-        if c in batted_balls.columns
-    ]
-    table_df = batted_balls[display_cols].sort_values(by='ExitSpeed', ascending=False).copy()
-    for num_c in ['ExitSpeed', 'Angle', 'Direction', 'Distance']:
-        if num_c in table_df.columns:
-            table_df[num_c] = table_df[num_c].round(1)
+            col_c, col_d = st.columns(2)
+            with col_c:
+                st.plotly_chart(render_2d_sz_heatmap(batted_balls, metric='ExitSpeed'), use_container_width=True, theme=None)
+            with col_d:
+                st.plotly_chart(render_2d_sz_heatmap(batted_balls, metric='Angle'), use_container_width=True, theme=None)
 
-    raw_table = dash_table.DataTable(
-        data=table_df.to_dict('records'),
-        columns=[{"name": i, "id": i} for i in display_cols],
-        page_size=15,
-        sort_action="native",
-        style_header={'backgroundColor': '#0F172A', 'color': 'white', 'fontWeight': 'bold'},
-        style_cell={'textAlign': 'center', 'padding': '10px', 'fontFamily': 'Inter', 'color': '#0F172A'},
-        style_data_conditional=[{'if': {'row_index': 'odd'}, 'backgroundColor': '#F8FAFC'}]
-    )
+        with tab4:
+            st.markdown("<h4 style='color:#0F172A; font-weight:800; margin-bottom:15px;'>Raw Event Log</h4>", unsafe_allow_html=True)
+            display_cols = [
+                c for c in ['Date', 'PitchNo', 'Pitcher', 'TaggedPitchType', 'ExitSpeed', 'Angle', 'Direction', 'Distance', 'PlayResult']
+                if c in batted_balls.columns
+            ]
+            table_df = batted_balls[display_cols].sort_values(by='ExitSpeed', ascending=False).copy()
+            for num_c in ['ExitSpeed', 'Angle', 'Direction', 'Distance']:
+                if num_c in table_df.columns:
+                    table_df[num_c] = table_df[num_c].round(1)
 
-    return header, kpi_cards, fig_field, fig_zone, fig_ev_field, fig_la_field, fig_ev_sz, fig_la_sz, raw_table
-
-
-if __name__ == '__main__':
-    app.run(debug=True)
+            st.dataframe(table_df, use_container_width=True, hide_index=True, height=550)

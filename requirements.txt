@@ -1,4 +1,8 @@
-streamlit
+dash
+dash-bootstrap-components
 pandas
 numpy
+plotly
 matplotlib
+google-genai
+gunicorn

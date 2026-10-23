@@ -1,63 +1,60 @@
-import streamlit as st
+import dash
+from dash import dcc, html, Input, Output, State, dash_table
+import dash_bootstrap_components as dbc
 import pandas as pd
 import numpy as np
+import sqlite3
+import plotly.graph_objects as go
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from matplotlib.patches import Wedge, Polygon, FancyBboxPatch, Rectangle
+from matplotlib.patches import Rectangle, Polygon as MplPolygon, Wedge, FancyBboxPatch
 import matplotlib.colors as mcolors
 from io import BytesIO
+import base64
+import io
 
-# --- PAGE SETUP ---
-st.set_page_config(page_title="Omaha BP Reports", layout="wide")
+app = dash.Dash(__name__, external_stylesheets=[dbc.themes.SLATE, "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&display=swap"], suppress_callback_exceptions=True)
+app.title = "Omaha Baseball Analytics"
+server = app.server
 
-# --- CUSTOM CSS FOR PROFESSIONAL AESTHETICS ---
-st.markdown("""
-    <style>
-        .block-container {
-            padding-top: 2rem;
-            padding-bottom: 2rem;
-        }
-        .metric-card {
-            background-color: #ffffff;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            padding: 15px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
-            text-align: center;
-            margin-bottom: 15px;
-        }
-        .metric-label {
-            font-size: 13px;
-            font-weight: 600;
-            color: #64748b;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 5px;
-        }
-        .metric-value {
-            font-size: 24px;
-            font-weight: 700;
-            color: #0f172a;
-        }
-        .header-container {
-            background: linear-gradient(90deg, #f8fafc 0%, #edf2f7 100%);
-            border-radius: 12px;
-            padding: 24px;
-            border: 1px solid #e2e8f0;
-            margin-bottom: 25px;
-        }
-    </style>
-""", unsafe_allow_html=True)
+DB_NAME = "trackman_master.db"
 
-# --- HELPER FUNCTIONS ---
+def init_db():
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS trackman_data (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            PitchNo INTEGER, Date TEXT, Time TEXT, Pitcher TEXT, Batter TEXT, BatterSide TEXT, PitcherThrows TEXT,
+            TaggedPitchType TEXT, ExitSpeed REAL, Angle REAL, Direction REAL, Distance REAL, HitSpinRate REAL, HangTime REAL,
+            PlateLocHeight REAL, PlateLocSide REAL, ContactPositionX REAL, ContactPositionY REAL, ContactPositionZ REAL,
+            PitchCall TEXT, PlayResult TEXT, TaggedHitType TEXT, KorBB TEXT,
+            Balls INTEGER, Strikes INTEGER, RelSpeed REAL, InducedVertBreak REAL, HorzBreak REAL, VertApprAngle REAL
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+init_db()
+
 def get_batter_side(side_str):
-    if pd.isna(side_str): return "Unk"
-    s = str(side_str).strip().lower()
-    if s == 'left': return 'LHH'
-    if s == 'right': return 'RHH'
-    if s == 'switch': return 'SHH'
-    return s
+    if pd.isna(side_str): return "UNK"
+    return 'LHH' if side_str.strip().lower() == 'left' else 'RHH' if side_str.strip().lower() == 'right' else 'SHH'
 
-def assign_zone(dist, direction):
+def assign_sz_zone(x, z):
+    if pd.isna(x) or pd.isna(z): return None
+    if -0.833 <= x <= 0.833 and 1.5 <= z <= 3.5:
+        if z >= 2.833: return 'Z1' if x <= -0.277 else 'Z2' if x <= 0.277 else 'Z3'
+        elif z >= 2.166: return 'Z4' if x <= -0.277 else 'Z5' if x <= 0.277 else 'Z6'
+        else: return 'Z7' if x <= -0.277 else 'Z8' if x <= 0.277 else 'Z9'
+    elif -1.166 <= x <= 1.166 and 3.5 < z <= 3.833: return 'S1'
+    elif -1.166 <= x <= 1.166 and 1.166 <= z < 1.5: return 'S3'
+    elif -1.166 <= x < -0.833 and 1.5 <= z <= 3.5: return 'S2'
+    elif 0.833 < x <= 1.166 and 1.5 <= z <= 3.5: return 'S4'
+    return 'Out'
+
+def assign_field_zone(dist, direction):
     if pd.isna(dist) or pd.isna(direction): return None
     if dist < 180: 
         if direction < -22.5: return 'IF_LL'
@@ -69,419 +66,338 @@ def assign_zone(dist, direction):
         elif direction < 15: return 'OF_C'
         else: return 'OF_R'
 
-def assign_sz_zone(x, z):
-    if pd.isna(x) or pd.isna(z): return None
-    if -0.833 <= x <= 0.833 and 1.5 <= z <= 3.5:
-        if z >= 2.833:
-            if x <= -0.277: return 'Z1'
-            elif x <= 0.277: return 'Z2'
-            else: return 'Z3'
-        elif z >= 2.166:
-            if x <= -0.277: return 'Z4'
-            elif x <= 0.277: return 'Z5'
-            else: return 'Z6'
-        else:
-            if x <= -0.277: return 'Z7'
-            elif x <= 0.277: return 'Z8'
-            else: return 'Z9'
-    elif -1.166 <= x <= 1.166 and 3.5 < z <= 3.833: return 'S1'
-    elif -1.166 <= x <= 1.166 and 1.166 <= z < 1.5: return 'S3'
-    elif -1.166 <= x < -0.833 and 1.5 <= z <= 3.5: return 'S2'
-    elif 0.833 < x <= 1.166 and 1.5 <= z <= 3.5: return 'S4'
-    return None
+def render_3d_stadium(df):
+    fig = go.Figure()
+    grass_material = dict(ambient=0.8, diffuse=0.9, roughness=0.9, specular=0.1)
+    dirt_material = dict(ambient=0.9, diffuse=0.8, roughness=1.0, specular=0.0)
 
-ZONES_CONFIG = {
-    'IF_LL': {'r_inner': 0, 'width': 180, 'theta1': 112.5, 'theta2': 135, 'text_r': 160, 'text_theta': 123.75},
-    'IF_LC': {'r_inner': 0, 'width': 180, 'theta1': 90, 'theta2': 112.5, 'text_r': 160, 'text_theta': 101.25},
-    'IF_RC': {'r_inner': 0, 'width': 180, 'theta1': 67.5, 'theta2': 90, 'text_r': 160, 'text_theta': 78.75},
-    'IF_RR': {'r_inner': 0, 'width': 180, 'theta1': 45, 'theta2': 67.5, 'text_r': 160, 'text_theta': 56.25},
-    'OF_L':  {'r_inner': 180, 'width': 200, 'theta1': 105, 'theta2': 135, 'text_r': 350, 'text_theta': 120},
-    'OF_C':  {'r_inner': 180, 'width': 200, 'theta1': 75, 'theta2': 105, 'text_r': 350, 'text_theta': 90},
-    'OF_R':  {'r_inner': 180, 'width': 200, 'theta1': 45, 'theta2': 75, 'text_r': 350, 'text_theta': 60},
-}
-
-SZ_ZONES_CONFIG = {
-    'Z1': {'x': -0.833, 'y': 2.833, 'w': 0.556, 'h': 0.667},
-    'Z2': {'x': -0.277, 'y': 2.833, 'w': 0.554, 'h': 0.667},
-    'Z3': {'x': 0.277,  'y': 2.833, 'w': 0.556, 'h': 0.667},
-    'Z4': {'x': -0.833, 'y': 2.166, 'w': 0.556, 'h': 0.667},
-    'Z5': {'x': -0.277, 'y': 2.166, 'w': 0.554, 'h': 0.667},
-    'Z6': {'x': 0.277,  'y': 2.166, 'w': 0.556, 'h': 0.667},
-    'Z7': {'x': -0.833, 'y': 1.5,   'w': 0.556, 'h': 0.666},
-    'Z8': {'x': -0.277, 'y': 1.5,   'w': 0.554, 'h': 0.666},
-    'Z9': {'x': 0.277,  'y': 1.5,   'w': 0.556, 'h': 0.666},
-    'S1': {'x': -1.166, 'y': 3.5,   'w': 2.332, 'h': 0.333},
-    'S3': {'x': -1.166, 'y': 1.167, 'w': 2.332, 'h': 0.333},
-    'S2': {'x': -1.166, 'y': 1.5,   'w': 0.333, 'h': 2.0},
-    'S4': {'x': 0.833,  'y': 1.5,   'w': 0.333, 'h': 2.0},
-}
-
-def draw_field_skeleton(ax, draw_infield=False):
-    angles = np.linspace(-45, 45, 100)
-    fence_x = 380 * np.sin(np.radians(angles))
-    fence_y = 380 * np.cos(np.radians(angles))
-    if draw_infield:
-        outfield = Wedge(center=(0, 0), r=380, theta1=45, theta2=135, facecolor='#e6f4ea', edgecolor='black', lw=2, zorder=1)
-        ax.add_patch(outfield)
-        infield_dirt = Wedge(center=(0, 0), r=154, theta1=45, theta2=135, facecolor='#f3e9d2', edgecolor='black', lw=1.5, zorder=2)
-        ax.add_patch(infield_dirt)
-        for angle in [-22.5, 0, 22.5]:
-            ax.plot([0, 380 * np.sin(np.radians(angle))], [0, 380 * np.cos(np.radians(angle))], color='black', lw=1, zorder=3)
-        bases_x = [90*np.sin(np.radians(45)), 0, 90*np.sin(np.radians(-45))]
-        bases_y = [90*np.cos(np.radians(45)), 90*np.sqrt(2), 90*np.cos(np.radians(-45))]
-        for bx, by in zip(bases_x, bases_y):
-            base = Polygon([[bx, by+4], [bx+4, by], [bx, by-4], [bx-4, by]], facecolor='white', edgecolor='black', lw=1, zorder=4)
-            ax.add_patch(base)
-        ax.scatter(0, 0, color='red', s=45, zorder=5)
-    else:
-        ax.plot([0, 380 * np.sin(np.radians(-45))], [0, 380 * np.cos(np.radians(-45))], color='#475569', lw=2, zorder=3)
-        ax.plot([0, 380 * np.sin(np.radians(45))], [0, 380 * np.cos(np.radians(45))], color='#475569', lw=2, zorder=3)
-        ax.plot(fence_x, fence_y, color='#475569', lw=2, zorder=3)
-        ax.scatter(0, 0, marker='D', color='#94a3b8', s=40, zorder=4)
-
-def draw_zoned_plot(ax, df, metric, title, vmin, vmax, cmap='coolwarm', unit='', is_ev=False):
-    draw_field_skeleton(ax, draw_infield=False) 
-    df['Zone'] = df.apply(lambda row: assign_zone(row['Distance'], row['Direction']), axis=1)
-    zone_avgs = df.groupby('Zone')[metric].mean()
-    norm = mcolors.Normalize(vmin=vmin, vmax=vmax)
-    colormap = plt.get_cmap(cmap)
-    for zone_name, config in ZONES_CONFIG.items():
-        avg_val = zone_avgs.get(zone_name, np.nan)
-        if pd.isna(avg_val):
-            color = '#f1f5f9'
-            text_val = "N/A"
-        else:
-            color = colormap(norm(avg_val))
-            text_val = f"{avg_val:.1f}{unit}"
-        font_size = 11
-        if is_ev and zone_name.startswith('IF'):
-            font_size = 8
-        wedge = Wedge(center=(0, 0), r=config['r_inner'] + config['width'], 
-                      theta1=config['theta1'], theta2=config['theta2'], 
-                      width=config['width'], facecolor=color, edgecolor='#cbd5e1', lw=1.5, alpha=0.85, zorder=1)
-        ax.add_patch(wedge)
-        text_x = config['text_r'] * np.cos(np.radians(config['text_theta']))
-        text_y = config['text_r'] * np.sin(np.radians(config['text_theta']))
-        ax.text(text_x, text_y, text_val, ha='center', va='center', fontsize=font_size, fontweight='bold', 
-                color='#0f172a', bbox=dict(facecolor='white', alpha=0.75, edgecolor='#e2e8f0', boxstyle='round,pad=0.3'), zorder=4)
-                
-    ax.set_xlim(-300, 300); ax.set_ylim(-30, 410); ax.set_aspect('equal')
-    ax.set_xticks([]); ax.set_yticks([])
-    for spine in ax.spines.values():
-        spine.set_visible(True)
-        spine.set_edgecolor('black')
-        spine.set_linewidth(1)
+    theta_arc = np.linspace(-np.pi/4, np.pi/4, 200)
+    for r in range(150, 401, 25):
+        x_out, y_out = r * np.sin(theta_arc), r * np.cos(theta_arc)
+        x_in, y_in = (r-25) * np.sin(theta_arc[::-1]), (r-25) * np.cos(theta_arc[::-1])
+        stripe_color = '#14532D' if (r//25)%2 == 0 else '#166534'
+        fig.add_trace(go.Mesh3d(x=np.concatenate([x_out, x_in, [x_out[0]]]), y=np.concatenate([y_out, y_in, [y_out[0]]]), z=np.zeros(401), color=stripe_color, lighting=grass_material, hoverinfo='skip', showlegend=False))
         
-    ax.set_title(title, fontsize=13, fontweight='bold', pad=10, color='#1e293b')
-    sm = plt.cm.ScalarMappable(cmap=colormap, norm=norm)
-    sm.set_array([])
-    cbar = plt.colorbar(sm, ax=ax, fraction=0.04, pad=0.04)
-    cbar.ax.tick_params(labelsize=9)
-    cbar.set_label(f"Avg {metric}", fontsize=10, weight='bold', color='#475569')
+    theta_full = np.linspace(0, 2*np.pi, 100)
+    fig.add_trace(go.Mesh3d(x=np.concatenate([[0], 145 * np.sin(np.linspace(-np.pi/4, np.pi/4, 100)), [0]]), y=np.concatenate([[0], 145 * np.cos(np.linspace(-np.pi/4, np.pi/4, 100)), [0]]), z=np.full(102, 0.1), color='#8D6E63', lighting=dirt_material, hoverinfo='skip', showlegend=False))
+    fig.add_trace(go.Mesh3d(x=13*np.sin(theta_full), y=13*np.cos(theta_full), z=np.full(100, 0.15), color='#8D6E63', lighting=dirt_material, hoverinfo='skip', showlegend=False)) 
+    fig.add_trace(go.Mesh3d(x=9*np.sin(theta_full), y=60.5 + 9*np.cos(theta_full), z=np.full(100, 0.15), color='#8D6E63', lighting=dirt_material, hoverinfo='skip', showlegend=False)) 
 
-def draw_strike_zone_plot(ax, df, metric, title, vmin, vmax, cmap='coolwarm', unit='', is_ev=False):
-    df['SZ_Zone'] = df.apply(lambda row: assign_sz_zone(row['PlateLocSide'], row['PlateLocHeight']), axis=1)
-    zone_avgs = df.groupby('SZ_Zone')[metric].mean()
-    norm = mcolors.Normalize(vmin=vmin, vmax=vmax)
-    colormap = plt.get_cmap(cmap)
-    for zone, rect in SZ_ZONES_CONFIG.items():
-        avg_val = zone_avgs.get(zone, np.nan)
-        color = colormap(norm(avg_val)) if not pd.isna(avg_val) else '#f1f5f9'
-        if pd.isna(avg_val):
-            text_val = "N/A"
-        else:
-            text_val = f"{avg_val:.1f}{unit}" if not is_ev else f"{avg_val:.1f}"
-        patch = Rectangle((rect['x'], rect['y']), rect['w'], rect['h'], 
-                          facecolor=color, edgecolor='#94a3b8', lw=1.5, zorder=1)
-        ax.add_patch(patch)
-        cx = rect['x'] + rect['w']/2
-        cy = rect['y'] + rect['h']/2
-        font_size = 10 if zone.startswith('Z') else 8
-        ax.text(cx, cy, text_val, ha='center', va='center', fontsize=font_size, fontweight='bold',
-                color='#0f172a', bbox=dict(facecolor='white', alpha=0.7, edgecolor='none', pad=1), zorder=3)
-    sz_border = Rectangle((-0.833, 1.5), 1.666, 2.0, fill=False, edgecolor='black', lw=2.5, zorder=2)
-    ax.add_patch(sz_border)
-    hp_x = [-0.708, 0.708, 0.708, 0, -0.708]
-    hp_y = [0, 0, 0.25, 0.5, 0.25] 
-    hp = Polygon(np.column_stack((hp_x, hp_y)), facecolor='white', edgecolor='black', lw=1.5, zorder=2)
-    ax.add_patch(hp)
+    fig.add_trace(go.Mesh3d(x=np.concatenate([400 * np.sin(theta_arc), 385 * np.sin(theta_arc[::-1]), [400 * np.sin(theta_arc[0])]]), y=np.concatenate([400 * np.cos(theta_arc), 385 * np.cos(theta_arc[::-1]), [400 * np.cos(theta_arc[0])]]), z=np.full(401, 0.2), color='#5D4037', lighting=dirt_material, hoverinfo='skip', showlegend=False))
     
-    ax.set_xlim(-2, 2); ax.set_ylim(0, 4.5); ax.set_aspect('equal')
-    ax.set_xticks([]); ax.set_yticks([])
-    for spine in ax.spines.values():
-        spine.set_visible(True)
-        spine.set_edgecolor('black')
-        spine.set_linewidth(1)
+    wall_x = np.concatenate([400 * np.sin(theta_arc), 400 * np.sin(theta_arc[::-1])])
+    wall_y = np.concatenate([400 * np.cos(theta_arc), 400 * np.cos(theta_arc[::-1])])
+    wall_z = np.concatenate([np.zeros(200), np.full(200, 15)])
+    fig.add_trace(go.Mesh3d(x=wall_x, y=wall_y, z=wall_z, color='rgba(15, 23, 42, 0.4)', alphahull=0, hoverinfo='skip', showlegend=False))
+    fig.add_trace(go.Scatter3d(x=400 * np.sin(theta_arc), y=400 * np.cos(theta_arc), z=np.full(200, 15), mode='lines', line=dict(color='#D71920', width=8), hoverinfo='skip', showlegend=False))
+
+    fig.add_trace(go.Scatter3d(x=[63.6, 0, -63.6], y=[63.6, 127.2, 63.6], z=[0.3, 0.3, 0.3], mode='markers', marker=dict(color='white', size=6, symbol='square'), hoverinfo='skip', showlegend=False))
+    fig.add_trace(go.Scatter3d(x=[0, 283], y=[0, 283], z=[0.2, 0.2], mode='lines', line=dict(color='white', width=4), hoverinfo='skip', showlegend=False))
+    fig.add_trace(go.Scatter3d(x=[0, -283], y=[0, 283], z=[0.2, 0.2], mode='lines', line=dict(color='white', width=4), hoverinfo='skip', showlegend=False))
+
+    if not df.empty:
+        for _, row in df.iterrows():
+            dist, direction, angle, ev = row.get('Distance'), row.get('Direction'), row.get('Angle'), row.get('ExitSpeed')
+            if pd.isna(dist) or pd.isna(direction) or pd.isna(angle): continue
+            t = np.linspace(0, 1, 60)
+            x_end, y_end = dist * np.sin(np.radians(direction)), dist * np.cos(np.radians(direction))
+            x_traj, y_traj = t * x_end, t * y_end
+            h_max = dist * np.tan(np.radians(max(0.1, angle))) * 0.25 
+            z_traj = 4 * h_max * t * (1 - t)
+            
+            color = '#D71920' if (ev >= 95 and 8 <= angle <= 32) else '#3B82F6' if ev >= 90 else '#94A3B8'
+            fig.add_trace(go.Scatter3d(x=x_traj, y=y_traj, z=z_traj, mode='lines', line=dict(color=color, width=6), hovertemplate=f"<b>EV:</b> {ev:.1f} mph<br><b>LA:</b> {angle:.1f}°<br><b>Dist:</b> {dist:.0f} ft<extra></extra>", showlegend=False))
+            fig.add_trace(go.Scatter3d(x=x_traj, y=y_traj, z=np.full(60, 0.3), mode='lines', line=dict(color='rgba(0,0,0,0.2)', width=2, dash='dot'), hoverinfo='skip', showlegend=False))
+            fig.add_trace(go.Scatter3d(x=[x_end], y=[y_end], z=[0.3], mode='markers', marker=dict(color=color, size=7, line=dict(color='white', width=2)), hoverinfo='skip', showlegend=False))
+
+    fig.update_layout(scene=dict(xaxis=dict(range=[-300, 300], visible=False), yaxis=dict(range=[-20, 450], visible=False), zaxis=dict(range=[0, 150], visible=False), aspectmode='manual', aspectratio=dict(x=1.3, y=1.3, z=0.3), camera=dict(up=dict(x=0, y=0, z=1), center=dict(x=0, y=0, z=0), eye=dict(x=0, y=-1.5, z=0.6))), margin=dict(l=0, r=0, b=0, t=0), paper_bgcolor='rgba(0,0,0,0)')
+    return fig
+
+def render_3d_strikezone(df):
+    fig = go.Figure()
+    
+    plate_x, plate_y = [-0.708, 0.708, 0.708, 0, -0.708, -0.708], [0, 0, 0.708, 1.417, 0.708, 0]
+    fig.add_trace(go.Scatter3d(x=plate_x, y=plate_y, z=np.zeros(6), mode='lines', surfaceaxis=2, surfacecolor='white', line=dict(color='#0F172A', width=6), hoverinfo='skip', showlegend=False))
+    
+    sz_z_lines, sz_x_lines = [1.5, 2.166, 2.833, 3.5], [-0.833, -0.277, 0.277, 0.833]
+    for y_plane in [0, 1.417]:
+        fig.add_trace(go.Scatter3d(x=[-0.833, 0.833, 0.833, -0.833, -0.833], y=np.full(5, y_plane), z=[1.5, 1.5, 3.5, 3.5, 1.5], mode='lines', line=dict(color='rgba(215, 25, 32, 0.9)' if y_plane==0 else 'rgba(148, 163, 184, 0.5)', width=5), hoverinfo='skip', showlegend=False))
+        for z in sz_z_lines[1:3]: fig.add_trace(go.Scatter3d(x=[-0.833, 0.833], y=[y_plane, y_plane], z=[z, z], mode='lines', line=dict(color='rgba(148, 163, 184, 0.3)', width=2), hoverinfo='skip', showlegend=False))
+        for x in sz_x_lines[1:3]: fig.add_trace(go.Scatter3d(x=[x, x], y=[y_plane, y_plane], z=[1.5, 3.5], mode='lines', line=dict(color='rgba(148, 163, 184, 0.3)', width=2), hoverinfo='skip', showlegend=False))
+    
+    for x in [-0.833, 0.833]:
+        for z in [1.5, 3.5]: fig.add_trace(go.Scatter3d(x=[x, x], y=[0, 1.417], z=[z, z], mode='lines', line=dict(color='rgba(148, 163, 184, 0.5)', width=4), hoverinfo='skip', showlegend=False))
+
+    if not df.empty:
+        df_cp = df.copy()
+        if 'ContactPositionX' in df_cp.columns: df_cp['Side'] = df_cp['ContactPositionX'].combine_first(df_cp['PlateLocSide'])
+        else: df_cp['Side'] = df_cp['PlateLocSide']
         
-    ax.set_title(title, fontsize=13, fontweight='bold', pad=10, color='#1e293b')
-    sm = plt.cm.ScalarMappable(cmap=colormap, norm=norm)
-    sm.set_array([])
-    cbar = plt.colorbar(sm, ax=ax, fraction=0.04, pad=0.04)
-    cbar.ax.tick_params(labelsize=9)
-    cbar.set_label(f"Avg {metric}", fontsize=10, weight='bold', color='#475569')
+        if 'ContactPositionY' in df_cp.columns: df_cp['Depth'] = df_cp['ContactPositionY'].combine_first(pd.Series(0.5, index=df_cp.index))
+        else: df_cp['Depth'] = 0.5
+        
+        if 'ContactPositionZ' in df_cp.columns: df_cp['Height'] = df_cp['ContactPositionZ'].combine_first(df_cp['PlateLocHeight'])
+        else: df_cp['Height'] = df_cp['PlateLocHeight']
+        
+        valid_cp = df_cp.dropna(subset=['Side', 'Height', 'Depth', 'ExitSpeed'])
+        
+        if not valid_cp.empty:
+            fig.add_trace(go.Scatter3d(
+                x=valid_cp['Side'], y=valid_cp['Depth'], z=valid_cp['Height'], mode='markers',
+                marker=dict(size=12, color=valid_cp['ExitSpeed'], colorscale='Turbo', showscale=True, colorbar=dict(title="EV (mph)", len=0.8, thickness=20), line=dict(color='black', width=1.5)),
+                hovertemplate="<b style='color:#0F172A; font-size:14px;'>EV: %{marker.color:.1f} mph</b><br>Side: %{x:.2f} ft<br>Depth: %{y:.2f} ft<br>Height: %{z:.2f} ft<extra></extra>",
+                name='Contact Point'
+            ))
+            fig.add_trace(go.Scatter3d(x=valid_cp['Side'], y=valid_cp['Depth'], z=np.zeros(len(valid_cp)), mode='markers', marker=dict(color='rgba(0,0,0,0.15)', size=5), hoverinfo='skip', showlegend=False))
 
-def draw_contact_plot(ax, df, title="Contact Depth Position"):
-    df_cp = df.copy()
-    df_cp['CP_X_in'] = df_cp['ContactPositionX'] * 12
-    df_cp['CP_Z_in'] = df_cp['ContactPositionZ'] * 12
-    
-    ax.grid(True, linestyle='--', alpha=0.6, color='#cbd5e1', zorder=0)
-    ax.axhline(0, color='black', lw=1.5, zorder=1)
-    ax.axvline(0, color='black', lw=1.5, zorder=1)
-    
-    hp_z = [0, -8.5, -8.5, 8.5, 8.5, 0] 
-    hp_x = [0, 8.5, 17, 17, 8.5, 0] 
-    hp = Polygon(np.column_stack((hp_z, hp_x)), facecolor='#f1f5f9', edgecolor='black', lw=1.5, zorder=2)
-    ax.add_patch(hp)
-    
-    sc = ax.scatter(df_cp['CP_Z_in'], df_cp['CP_X_in'], 
-                    c=df_cp['ExitSpeed'], cmap='coolwarm', vmin=75, vmax=100,
-                    s=65, edgecolors='#0f172a', lw=0.75, zorder=5)
-                    
-    ax.set_xlim(-30, 30); ax.set_ylim(-5, 55); ax.set_aspect('equal')
-    ax.set_xticks(np.arange(-30, 31, 10))
-    ax.set_yticks(np.arange(0, 51, 10))
-    
-    for spine in ax.spines.values():
-        spine.set_visible(True)
-        spine.set_edgecolor('black')
-        spine.set_linewidth(1)
-    
-    ax.set_title(title, fontsize=13, fontweight='bold', pad=10, color='#1e293b')
-    ax.set_xlabel("Side to Side (inches)", fontsize=10, fontweight='bold', color='#64748b')
-    ax.set_ylabel("Out in Front (inches)", fontsize=10, fontweight='bold', color='#64748b')
-    
-    cbar = plt.colorbar(sc, ax=ax, fraction=0.04, pad=0.04)
-    cbar.ax.tick_params(labelsize=9)
-    cbar.set_label("Exit Velocity (mph)", fontsize=10, weight='bold', color='#475569')
+    fig.update_layout(scene=dict(xaxis=dict(title='Side to Side (ft)', range=[-3, 3], gridcolor='#E2E8F0', backgroundcolor='#F8FAFC', showbackground=True), yaxis=dict(title='Depth: Catcher ⬅️ Pitcher (ft)', range=[-1, 4], gridcolor='#E2E8F0', backgroundcolor='#F8FAFC', showbackground=True), zaxis=dict(title='Height (ft)', range=[0, 5], gridcolor='#E2E8F0', backgroundcolor='#F8FAFC', showbackground=True), aspectmode='manual', aspectratio=dict(x=1.2, y=1.2, z=0.9), camera=dict(eye=dict(x=1.4, y=-1.6, z=0.8))), margin=dict(l=0, r=0, b=0, t=0), paper_bgcolor='rgba(0,0,0,0)')
+    return fig
 
-# --- FILE UPLOAD ---
-uploaded_file = st.file_uploader("Upload Trackman CSV", type=['csv'])
+def create_wedge_polygon(r_inner, r_outer, theta1, theta2, num_points=40):
+    t1_rad, t2_rad = np.radians(theta1), np.radians(theta2)
+    theta_vals = np.linspace(t1_rad, t2_rad, num_points)
+    x_outer = r_outer * np.sin(theta_vals)
+    y_outer = r_outer * np.cos(theta_vals)
+    x_inner = r_inner * np.sin(theta_vals[::-1])
+    y_inner = r_inner * np.cos(theta_vals[::-1])
+    return np.concatenate([x_outer, x_inner, [x_outer[0]]]), np.concatenate([y_outer, y_inner, [y_outer[0]]])
 
-if uploaded_file is not None:
+def render_2d_field_heatmap(df, metric='ExitSpeed'):
+    fig = go.Figure()
+    theta_arc = np.linspace(-np.pi/4, np.pi/4, 100)
+    fig.add_trace(go.Scatter(x=400 * np.sin(theta_arc), y=400 * np.cos(theta_arc), mode='lines', line=dict(color='#64748B', width=2), hoverinfo='skip', showlegend=False))
+    fig.add_trace(go.Scatter(x=[0, 400*np.sin(np.pi/4)], y=[0, 400*np.cos(np.pi/4)], mode='lines', line=dict(color='#64748B', width=2), hoverinfo='skip', showlegend=False))
+    fig.add_trace(go.Scatter(x=[0, 400*np.sin(-np.pi/4)], y=[0, 400*np.cos(-np.pi/4)], mode='lines', line=dict(color='#64748B', width=2), hoverinfo='skip', showlegend=False))
+    fig.add_trace(go.Scatter(x=180 * np.sin(theta_arc), y=180 * np.cos(theta_arc), mode='lines', line=dict(color='#94A3B8', width=2, dash='dash'), hoverinfo='skip', showlegend=False))
+
+    zones = { 'IF_LL': {'r': (0, 180), 't': (-45, -22.5)}, 'IF_LC': {'r': (0, 180), 't': (-22.5, 0)}, 'IF_RC': {'r': (0, 180), 't': (0, 22.5)}, 'IF_RR': {'r': (0, 180), 't': (22.5, 45)}, 'OF_L': {'r': (180, 400), 't': (-45, -15)}, 'OF_C': {'r': (180, 400), 't': (-15, 15)}, 'OF_R': {'r': (180, 400), 't': (15, 45)} }
+
+    df_copy = df.copy()
+    df_copy['FieldZone'] = df_copy.apply(lambda r: assign_field_zone(r['Distance'], r['Direction']), axis=1)
+    avgs = df_copy.groupby('FieldZone')[metric].mean()
+    vmin, vmax = (75, 100) if metric == 'ExitSpeed' else (0, 35)
+    cmap = plt.get_cmap('coolwarm' if metric == 'ExitSpeed' else 'viridis')
+    norm = mcolors.Normalize(vmin=vmin, vmax=vmax)
+
+    for z, params in zones.items():
+        val = avgs.get(z, np.nan)
+        color, text_val = 'rgba(241, 245, 249, 0.4)', "N/A"
+        if not pd.isna(val):
+            rgba = cmap(norm(val))
+            color = f'rgba({int(rgba[0]*255)}, {int(rgba[1]*255)}, {int(rgba[2]*255)}, 0.9)'
+            text_val = f"{val:.1f}{' mph' if metric == 'ExitSpeed' else '°'}"
+
+        x_pts, y_pts = create_wedge_polygon(params['r'][0], params['r'][1], params['t'][0], params['t'][1])
+        fig.add_trace(go.Scatter(x=x_pts, y=y_pts, fill='toself', fillcolor=color, mode='lines', line=dict(color='white', width=1.5), hoverinfo='skip', showlegend=False))
+        mid_r = params['r'][0] + (params['r'][1] - params['r'][0])/2
+        mid_t = np.radians(params['t'][0] + (params['t'][1] - params['t'][0])/2)
+        fig.add_trace(go.Scatter(x=[mid_r * np.sin(mid_t)], y=[mid_r * np.cos(mid_t)], mode='text', text=[text_val], textfont=dict(color='black', size=15, family='Inter', weight='900'), hoverinfo='skip', showlegend=False))
+
+    fig.update_layout(xaxis=dict(visible=False, range=[-300, 300]), yaxis=dict(visible=False, range=[-20, 420], scaleanchor='x', scaleratio=1), margin=dict(l=0, r=0, b=0, t=40), title=dict(text=f"AVERAGE {metric.upper() if metric == 'ExitSpeed' else 'LAUNCH ANGLE'} BY FIELD QUADRANT", font=dict(size=14, family='Inter', weight='bold', color='#0F172A'), x=0.5, y=0.95), paper_bgcolor='white', plot_bgcolor='white')
+    return fig
+
+def render_2d_sz_heatmap(df, metric='ExitSpeed'):
+    fig = go.Figure()
+    plate_x, plate_y = [-0.708, 0.708, 0.708, 0, -0.708, -0.708], [0, 0, 0.25, 0.5, 0.25, 0]
+    fig.add_trace(go.Scatter(x=plate_x, y=plate_y, mode='lines', fill='toself', fillcolor='white', line=dict(color='#0F172A', width=2), hoverinfo='skip', showlegend=False))
+    fig.add_trace(go.Scatter(x=[-0.833, 0.833, 0.833, -0.833, -0.833], y=[1.5, 1.5, 3.5, 3.5, 1.5], mode='lines', line=dict(color='#0F172A', width=3), hoverinfo='skip', showlegend=False))
+
+    sz_rects = { 'Z1': {'x': -0.833, 'y': 2.833, 'w': 0.556, 'h': 0.667}, 'Z2': {'x': -0.277, 'y': 2.833, 'w': 0.554, 'h': 0.667}, 'Z3': {'x': 0.277, 'y': 2.833, 'w': 0.556, 'h': 0.667}, 'Z4': {'x': -0.833, 'y': 2.166, 'w': 0.556, 'h': 0.667}, 'Z5': {'x': -0.277, 'y': 2.166, 'w': 0.554, 'h': 0.667}, 'Z6': {'x': 0.277, 'y': 2.166, 'w': 0.556, 'h': 0.667}, 'Z7': {'x': -0.833, 'y': 1.5, 'w': 0.556, 'h': 0.666}, 'Z8': {'x': -0.277, 'y': 1.5, 'w': 0.554, 'h': 0.666}, 'Z9': {'x': 0.277, 'y': 1.5, 'w': 0.556, 'h': 0.666}, 'S1': {'x': -1.166, 'y': 3.5, 'w': 2.332, 'h': 0.333}, 'S3': {'x': -1.166, 'y': 1.167, 'w': 2.332, 'h': 0.333}, 'S2': {'x': -1.166, 'y': 1.5, 'w': 0.333, 'h': 2.0}, 'S4': {'x': 0.833, 'y': 1.5, 'w': 0.333, 'h': 2.0} }
+
+    df_copy = df.copy()
+    df_copy['SZ'] = df_copy.apply(lambda r: assign_sz_zone(r['PlateLocSide'], r['PlateLocHeight']), axis=1)
+    avgs = df_copy.groupby('SZ')[metric].mean()
+    vmin, vmax = (75, 100) if metric == 'ExitSpeed' else (0, 35)
+    cmap = plt.get_cmap('coolwarm' if metric == 'ExitSpeed' else 'viridis')
+    norm = mcolors.Normalize(vmin=vmin, vmax=vmax)
+
+    for z, r in sz_rects.items():
+        val = avgs.get(z, np.nan)
+        color, text_val = 'rgba(241, 245, 249, 0.4)', "N/A"
+        if not pd.isna(val):
+            rgba = cmap(norm(val))
+            color = f'rgba({int(rgba[0]*255)}, {int(rgba[1]*255)}, {int(rgba[2]*255)}, 0.95)'
+            text_val = f"{val:.1f}"
+
+        x_pts = [r['x'], r['x']+r['w'], r['x']+r['w'], r['x'], r['x']]
+        y_pts = [r['y'], r['y'], r['y']+r['h'], r['y']+r['h'], r['y']]
+        line_color = 'white' if z.startswith('Z') else 'rgba(0,0,0,0)'
+        fig.add_trace(go.Scatter(x=x_pts, y=y_pts, fill='toself', fillcolor=color, mode='lines', line=dict(color=line_color, width=2), hoverinfo='skip', showlegend=False))
+        fig.add_trace(go.Scatter(x=[r['x']+r['w']/2], y=[r['y']+r['h']/2], mode='text', text=[text_val], textfont=dict(color='black', size=16 if z.startswith('Z') else 11, family='Inter', weight='900'), hoverinfo='skip', showlegend=False))
+
+    fig.update_layout(xaxis=dict(visible=False, range=[-2, 2]), yaxis=dict(visible=False, range=[0, 4.5], scaleanchor='x', scaleratio=1), margin=dict(l=0, r=0, b=0, t=40), title=dict(text=f"AVERAGE {metric.upper() if metric == 'ExitSpeed' else 'LAUNCH ANGLE'} BY PITCH LOCATION", font=dict(size=14, family='Inter', weight='bold', color='#0F172A'), x=0.5, y=0.95), paper_bgcolor='white', plot_bgcolor='white')
+    return fig
+
+SIDEBAR_STYLE = { "position": "fixed", "top": 0, "left": 0, "bottom": 0, "width": "22rem", "padding": "2rem 1.5rem", "background-color": "#0F172A", "color": "white", "overflowY": "auto"}
+CONTENT_STYLE = { "margin-left": "23rem", "padding": "2rem", "background-color": "#F8FAFC", "min-height": "100vh"}
+
+sidebar = html.Div([
+    html.Img(src="https://upload.wikimedia.org/wikipedia/en/thumb/0/01/Omaha_Mavericks_logo.svg/1200px-Omaha_Mavericks_logo.svg.png", style={"width": "140px", "display": "block", "margin": "0 auto 30px auto"}),
+    
+    html.H5("Data Ingestion", style={"color": "#94A3B8", "fontSize": "13px", "textTransform": "uppercase", "letterSpacing": "1px", "marginBottom": "15px", "fontWeight": "bold"}),
+    dcc.Upload(id='upload-data', children=html.Div(['Drop CSV or ', html.A('Select File', style={"fontWeight": "bold"})]), style={'width': '100%', 'height': '60px', 'lineHeight': '60px', 'borderWidth': '2px', 'borderStyle': 'dashed', 'borderColor': '#D71920', 'borderRadius': '8px', 'textAlign': 'center', 'cursor': 'pointer', 'backgroundColor': '#1E293B', 'color': 'white'}),
+    html.Div(id='upload-output', style={"color": "#4ADE80", "fontSize": "13px", "marginTop": "10px", "fontWeight": "bold", "marginBottom": "20px"}),
+    
+    html.Hr(style={"borderColor": "#334155"}),
+    
+    html.H5("Performance Filters", style={"color": "#94A3B8", "fontSize": "13px", "textTransform": "uppercase", "letterSpacing": "1px", "marginBottom": "15px", "fontWeight": "bold"}),
+    html.Label("Hitter Profile", style={"fontSize": "12px", "fontWeight": "600"}),
+    dcc.Dropdown(id='hitter-dropdown', style={"color": "black", "marginBottom": "15px"}),
+    
+    html.Label("Date Range", style={"fontSize": "12px", "fontWeight": "600"}),
+    dcc.Dropdown(id='date-dropdown', style={"color": "black", "marginBottom": "15px"})
+], style=SIDEBAR_STYLE)
+
+main_content = html.Div([
+    html.Div(id="dashboard-header", style={"background": "linear-gradient(135deg, #0B0F19 0%, #1A2235 100%)", "borderRadius": "16px", "padding": "30px 40px", "color": "white", "marginBottom": "30px", "borderLeft": "8px solid #D71920", "boxShadow": "0 20px 25px -5px rgba(0, 0, 0, 0.1)"}),
+    html.Div(id="kpi-grid", style={"display": "grid", "gridTemplateColumns": "repeat(auto-fit, minmax(140px, 1fr))", "gap": "15px", "marginBottom": "30px"}),
+    
+    dbc.Tabs([
+        dbc.Tab(html.Div([dbc.Row([dbc.Col(dcc.Graph(id='3d-stadium-graph', style={"height": "750px"}), width=12)])], style={"padding": "20px"}), label="🌐 Interactive Spray Chart", tab_style={"backgroundColor": "#E2E8F0", "border": "none"}, active_tab_style={"backgroundColor": "white", "color": "#0F172A", "fontWeight": "bold", "borderTop": "3px solid #D71920"}),
+        dbc.Tab(html.Div([dbc.Row([dbc.Col(dcc.Graph(id='3d-strikezone-graph', style={"height": "750px"}), width=12)])], style={"padding": "20px"}), label="⚾ 3D Strike Zone", tab_style={"backgroundColor": "#E2E8F0", "border": "none"}, active_tab_style={"backgroundColor": "white", "color": "#0F172A", "fontWeight": "bold", "borderTop": "3px solid #D71920"}),
+        dbc.Tab(html.Div([
+            dbc.Row([dbc.Col(dcc.Graph(id='2d-ev-field', style={"height": "600px"}), width=6), dbc.Col(dcc.Graph(id='2d-la-field', style={"height": "600px"}), width=6)]),
+            dbc.Row([dbc.Col(dcc.Graph(id='2d-ev-sz', style={"height": "600px"}), width=6), dbc.Col(dcc.Graph(id='2d-la-sz', style={"height": "600px"}), width=6)], style={"marginTop": "20px"})
+        ], style={"padding": "20px"}), label="🔥 Heatmap Matrices", tab_style={"backgroundColor": "#E2E8F0", "border": "none"}, active_tab_style={"backgroundColor": "white", "color": "#0F172A", "fontWeight": "bold", "borderTop": "3px solid #D71920"}),
+        dbc.Tab(html.Div([
+            html.H4("Raw Event Log", style={"marginBottom": "20px", "fontWeight": "bold"}),
+            html.Div(id="data-table-container")
+        ], style={"padding": "30px", "backgroundColor": "white", "borderRadius": "8px", "border": "1px solid #E2E8F0"}), label="📊 Performance Tables", tab_style={"backgroundColor": "#E2E8F0", "border": "none"}, active_tab_style={"backgroundColor": "white", "color": "#0F172A", "fontWeight": "bold", "borderTop": "3px solid #D71920"}),
+    ])
+], style=CONTENT_STYLE)
+
+app.layout = html.Div([sidebar, main_content])
+
+@app.callback(
+    Output('upload-output', 'children'),
+    Input('upload-data', 'contents'),
+    prevent_initial_call=True
+)
+def process_upload(contents):
+    if contents is None: return ""
     try:
-        df = pd.read_csv(uploaded_file)
-    except UnicodeDecodeError:
-        uploaded_file.seek(0)
-        df = pd.read_csv(uploaded_file, encoding='latin1')
-    
-    required_cols = ['ExitSpeed', 'Direction', 'Distance', 'Angle', 'HitSpinRate', 'HangTime', 
-                     'PlateLocHeight', 'PlateLocSide', 'ContactPositionX', 'ContactPositionZ']
-    missing = [c for c in required_cols if c not in df.columns]
-    
-    if missing:
-        st.error(f"Missing columns in CSV: {missing}")
-    else:
-        df_hit = df.dropna(subset=['ExitSpeed', 'Direction', 'Distance', 'Angle', 'PlateLocHeight', 'PlateLocSide', 'ContactPositionX', 'ContactPositionZ']).copy()
+        _, content_string = contents.split(',')
+        decoded = base64.b64decode(content_string)
         
-        if df_hit.empty:
-            st.error("No valid batted ball data found in this CSV.")
-        else:
-            batters = df_hit['Batter'].unique()
-            selected_batter = st.selectbox("Select Hitter:", sorted(batters))
-            batter_data = df_hit[df_hit['Batter'] == selected_batter].copy()
+        try: df_upload = pd.read_csv(io.StringIO(decoded.decode('utf-8-sig')))
+        except: df_upload = pd.read_csv(io.StringIO(decoded.decode('latin1')))
             
-            # --- METRICS ---
-            total_swings = len(batter_data)
-            max_ev = batter_data['ExitSpeed'].max()
-            
-            # Hard Hit Calculation (Within 10% of Max EV)
-            hard_hit_threshold = max_ev * 0.90
-            total_hh = len(batter_data[batter_data['ExitSpeed'] >= hard_hit_threshold])
-            hh_pct = (total_hh / total_swings) * 100 if total_swings > 0 else 0.0
-            
-            avg_ev = batter_data['ExitSpeed'].mean()
-            avg_la = batter_data['Angle'].mean()
-            avg_dist = batter_data['Distance'].mean()
-            max_dist = batter_data['Distance'].max()
-            avg_spin = batter_data['HitSpinRate'].mean()
-            avg_hang = batter_data['HangTime'].mean()
-            
-            side_raw = batter_data['BatterSide'].iloc[0] if 'BatterSide' in batter_data.columns else "Undefined"
-            batter_side = get_batter_side(side_raw)
-            session_date = batter_data['Date'].iloc[0] if 'Date' in batter_data.columns else "Unknown Date"
-            
-            # --- WEB HEADER ---
-            st.markdown(f"""
-                <div class="header-container">
-                    <table style="width:100%; border:none; border-collapse:collapse; background:transparent;">
-                        <tr style="background:transparent;">
-                            <td style="width:100px; border:none; padding:0; vertical-align:middle;">
-                                <img src="Logo.png" style="width:90px; height:auto;">
-                            </td>
-                            <td style="border:none; padding-left:20px; vertical-align:middle;">
-                                <div style="font-size: 28px; font-weight: 800; color: #0f172a; line-height:1.1;">{selected_batter} <span style="color:#3b82f6; font-size:22px;">| {batter_side}</span></div>
-                                <div style="font-size: 15px; font-weight: 500; color: #64748b; margin-top: 4px;">OMAHA BP REPORTS • Recorded: {session_date}</div>
-                            </td>
-                        </tr>
-                    </table>
-                </div>
-            """, unsafe_allow_html=True)
-            
-            # --- WEB TILES ---
-            st.markdown("<h4 style='color:#1e293b; margin-bottom:15px;'>Performance Overview</h4>", unsafe_allow_html=True)
-            
-            # Expanded to 10 columns for the two new Hard Hit metrics
-            t_cols = st.columns(10)
-            metrics = [
-                ("Total Swings", f"{int(total_swings)}", t_cols[0]), 
-                ("Total HH", f"{int(total_hh)}", t_cols[1]),
-                ("Hard Hit %", f"{hh_pct:.1f}%", t_cols[2]),
-                ("Avg EV", f"{avg_ev:.1f} mph", t_cols[3]),
-                ("Max EV", f"{max_ev:.1f} mph", t_cols[4]), 
-                ("Avg LA", f"{avg_la:.1f}°", t_cols[5]),
-                ("Avg Dist.", f"{avg_dist:.0f} ft", t_cols[6]), 
-                ("Max Dist.", f"{max_dist:.0f} ft", t_cols[7]),
-                ("Avg Spin", f"{avg_spin:.0f} rpm", t_cols[8]), 
-                ("Avg Hang", f"{avg_hang:.2f} s", t_cols[9])
-            ]
-            for label, value, col in metrics:
-                col.markdown(f"""
-                    <div class="metric-card">
-                        <div class="metric-label">{label}</div>
-                        <div class="metric-value">{value}</div>
-                    </div>
-                """, unsafe_allow_html=True)
-            st.markdown("<br>", unsafe_allow_html=True)
+        df_upload.columns = df_upload.columns.str.strip()
+        
+        cols_to_keep = [
+            'PitchNo', 'Date', 'Time', 'Pitcher', 'Batter', 'BatterSide', 'PitcherThrows',
+            'TaggedPitchType', 'ExitSpeed', 'Angle', 'Direction', 'Distance', 'HitSpinRate', 
+            'HangTime', 'PlateLocHeight', 'PlateLocSide', 'ContactPositionX', 
+            'ContactPositionY', 'ContactPositionZ', 'PitchCall', 'PlayResult', 'TaggedHitType',
+            'KorBB', 'Balls', 'Strikes', 'RelSpeed', 'InducedVertBreak', 'HorzBreak', 'VertApprAngle'
+        ]
+        
+        df_cleaned = df_upload[[c for c in cols_to_keep if c in df_upload.columns]].copy()
+        numeric_cols = ['ExitSpeed', 'Angle', 'Direction', 'Distance', 'PlateLocHeight', 'PlateLocSide', 'ContactPositionX', 'ContactPositionY', 'ContactPositionZ']
+        for col in numeric_cols:
+            if col in df_cleaned.columns:
+                df_cleaned[col] = pd.to_numeric(df_cleaned[col], errors='coerce')
+        
+        conn = sqlite3.connect(DB_NAME)
+        df_cleaned.to_sql('trackman_data', conn, if_exists='append', index=False)
+        conn.close()
+        return "✅ Data ingested successfully."
+    except Exception as e:
+        return f"Error: {str(e)}"
 
-            # --- WEB PLOTS (ROW 1 - FIELD SPRAYS) ---
-            p_col1, p_col2, p_col3 = st.columns([1, 1, 1])
-            with p_col1:
-                fig1, ax1 = plt.subplots(figsize=(7, 7), dpi=100)
-                draw_field_skeleton(ax1, draw_infield=True)
-                gb = batter_data[batter_data['Angle'] < 10]
-                ld = batter_data[(batter_data['Angle'] >= 10) & (batter_data['Angle'] <= 25)]
-                fb = batter_data[batter_data['Angle'] > 25]
-                for sub_df, color, lbl in [(gb, '#3b82f6', 'GB (<10°)'), (ld, '#22c55e', 'LD (10°-25°)'), (fb, '#ef4444', 'FB (>25°)')]:
-                    if not sub_df.empty:
-                        x = sub_df['Distance'] * np.sin(np.radians(sub_df['Direction']))
-                        y = sub_df['Distance'] * np.cos(np.radians(sub_df['Direction']))
-                        ax1.scatter(x, y, color=color, s=55, edgecolors='#0f172a', linewidths=0.75, label=lbl, zorder=6)
-                
-                ax1.set_xlim(-300, 300); ax1.set_ylim(-30, 410); ax1.set_aspect('equal')
-                ax1.set_xticks([]); ax1.set_yticks([])
-                for spine in ax1.spines.values():
-                    spine.set_visible(True)
-                    spine.set_edgecolor('black')
-                    spine.set_linewidth(1)
-                    
-                ax1.set_title("Batted Ball Profile", fontsize=13, fontweight='bold', pad=10, color='#1e293b')
-                ax1.legend(loc='lower left', frameon=True, facecolor='white', edgecolor='#e2e8f0', fontsize=9)
-                st.pyplot(fig1)
+@app.callback(
+    [Output('hitter-dropdown', 'options'), Output('hitter-dropdown', 'value')],
+    Input('upload-output', 'children')
+)
+def update_hitters(_):
+    conn = sqlite3.connect(DB_NAME)
+    df = pd.read_sql("SELECT DISTINCT Batter FROM trackman_data", conn)
+    conn.close()
+    if df.empty: return [], None
+    batters = sorted(df['Batter'].dropna().tolist())
+    return [{'label': b, 'value': b} for b in batters], batters[0]
 
-            with p_col2:
-                fig2, ax2 = plt.subplots(figsize=(7, 7), dpi=100)
-                draw_zoned_plot(ax2, batter_data, metric='ExitSpeed', title="Avg EV by Field Quadrant", vmin=75, vmax=100, cmap='coolwarm', unit='', is_ev=True)
-                st.pyplot(fig2)
+@app.callback(
+    [Output('date-dropdown', 'options'), Output('date-dropdown', 'value')],
+    Input('hitter-dropdown', 'value')
+)
+def update_dates(hitter):
+    if not hitter: return [], None
+    conn = sqlite3.connect(DB_NAME)
+    df = pd.read_sql(f"SELECT DISTINCT Date FROM trackman_data WHERE Batter = '{hitter}'", conn)
+    conn.close()
+    dates = ["All-Time"] + sorted(df['Date'].dropna().unique().tolist(), reverse=True)
+    return [{'label': d, 'value': d} for d in dates], "All-Time"
 
-            with p_col3:
-                fig3, ax3 = plt.subplots(figsize=(7, 7), dpi=100)
-                draw_zoned_plot(ax3, batter_data, metric='Angle', title="Avg LA by Field Quadrant", vmin=0, vmax=35, cmap='coolwarm', unit='°')
-                st.pyplot(fig3)
+@app.callback(
+    [Output('dashboard-header', 'children'), Output('kpi-grid', 'children'), 
+     Output('3d-stadium-graph', 'figure'), Output('3d-strikezone-graph', 'figure'),
+     Output('2d-ev-field', 'figure'), Output('2d-la-field', 'figure'),
+     Output('2d-ev-sz', 'figure'), Output('2d-la-sz', 'figure'),
+     Output('data-table-container', 'children')],
+    [Input('hitter-dropdown', 'value'), Input('date-dropdown', 'value')]
+)
+def update_dashboard(hitter, date):
+    if not hitter: return dash.no_update, dash.no_update, go.Figure(), go.Figure(), go.Figure(), go.Figure(), go.Figure(), go.Figure(), ""
+    
+    conn = sqlite3.connect(DB_NAME)
+    query = f"SELECT * FROM trackman_data WHERE Batter = '{hitter}'"
+    if date and date != "All-Time": query += f" AND Date = '{date}'"
+    df = pd.read_sql(query, conn)
+    conn.close()
 
-            st.markdown("<br>", unsafe_allow_html=True)
+    batted_balls = df.dropna(subset=['ExitSpeed'])
+    batted_balls = batted_balls[batted_balls['ExitSpeed'] > 0]
+    
+    if batted_balls.empty:
+        empty_header = html.Div([html.H1(hitter.upper(), style={"fontSize": "42px", "fontWeight": "900", "margin": 0}), html.Div("NO BATTED BALL EVENTS FOUND FOR SELECTION", style={"fontSize": "15px", "fontWeight": "600", "color": "#D71920"})])
+        return empty_header, "", go.Figure(), go.Figure(), go.Figure(), go.Figure(), go.Figure(), go.Figure(), ""
 
-            # --- WEB PLOTS (ROW 2 - STRIKE ZONES & CONTACT) ---
-            sz_col1, sz_col2, cp_col3 = st.columns([1, 1, 1])
-            with sz_col1:
-                fig4, ax4 = plt.subplots(figsize=(7, 7), dpi=100)
-                draw_strike_zone_plot(ax4, batter_data, metric='ExitSpeed', title="Avg EV by Pitch Location", vmin=75, vmax=100, cmap='coolwarm', is_ev=True)
-                st.pyplot(fig4)
-            with sz_col2:
-                fig5, ax5 = plt.subplots(figsize=(7, 7), dpi=100)
-                draw_strike_zone_plot(ax5, batter_data, metric='Angle', title="Avg LA by Pitch Location", vmin=0, vmax=35, cmap='coolwarm', unit='°')
-                st.pyplot(fig5)
-            with cp_col3:
-                fig6, ax6 = plt.subplots(figsize=(7, 7), dpi=100)
-                draw_contact_plot(ax6, batter_data, title="Contact Depth Position")
-                st.pyplot(fig6)
+    side = get_batter_side(df['BatterSide'].iloc[0] if 'BatterSide' in df.columns else "UNK")
+    total_swings = len(df[df['PitchCall'].isin(['InPlay', 'Foul', 'StrikeSwinging'])])
+    bip = len(batted_balls)
+    avg_ev, max_ev = batted_balls['ExitSpeed'].mean(), batted_balls['ExitSpeed'].max()
+    ev90 = np.percentile(batted_balls['ExitSpeed'], 90) 
+    hh_pct = (len(batted_balls[batted_balls['ExitSpeed'] >= 95]) / bip) * 100 if bip > 0 else 0
+    swsp_pct = (len(batted_balls[(batted_balls['Angle'] >= 8) & (batted_balls['Angle'] <= 32)]) / bip) * 100 if bip > 0 else 0
+    avg_la, std_la = batted_balls['Angle'].mean(), batted_balls['Angle'].std()
+    avg_dist = batted_balls['Distance'].mean()
 
-            # --- PDF GENERATOR ---
-            def create_pdf():
-                pdf_buffer = BytesIO()
-                fig = plt.figure(figsize=(14, 11)) 
-                
-                # Page Border
-                page_border = Rectangle((0.015, 0.015), 0.97, 0.97, fill=False, edgecolor='black', lw=1, transform=fig.transFigure)
-                fig.patches.append(page_border)
+    header = [
+        html.Div([
+            html.H1(hitter.upper(), style={"fontSize": "42px", "fontWeight": "900", "margin": 0, "letterSpacing": "-1px"}),
+            html.Div(f"BATS: {side}  |  RANGE: {date}  |  BATTED BALL EVENTS: {bip}", style={"fontSize": "15px", "fontWeight": "600", "color": "#94A3B8", "letterSpacing": "1px", "marginTop": "6px"})
+        ])
+    ]
 
-                # PDF Header
-                fig.text(0.04, 0.94, f"{selected_batter}  |  {batter_side}", fontsize=26, fontweight='bold', color='#0f172a')
-                fig.text(0.04, 0.91, f"OMAHA BP REPORTS • Profile Date: {session_date}", fontsize=14, color='#64748b')
-                fig.add_artist(plt.Line2D((0.04, 0.89), (0.89, 0.89), color='#cbd5e1', linewidth=1.5))
+    kpis = [("TOTAL SWINGS", total_swings), ("HARD HIT %", f"{hh_pct:.1f}%"), ("SWEET SPOT %", f"{swsp_pct:.1f}%"), ("AVG EV", f"{avg_ev:.1f}"), ("90th% EV", f"{ev90:.1f}"), ("MAX EV", f"{max_ev:.1f}"), ("AVG LA", f"{avg_la:.1f}°"), ("LA DEV", f"{std_la:.1f}°"), ("AVG DIST", f"{avg_dist:.0f} ft" if not pd.isna(avg_dist) else "N/A")]
+    
+    kpi_cards = []
+    for label, val in kpis:
+        val_color = "#D71920" if label in ["90th% EV", "SWEET SPOT %", "HARD HIT %"] else "#0F172A"
+        kpi_cards.append(html.Div([
+            html.Div(label, style={"fontSize": "11px", "fontWeight": "800", "color": "#64748B", "marginBottom": "5px"}),
+            html.Div(val, style={"fontSize": "26px", "fontWeight": "900", "color": val_color})
+        ], style={"background": "#FFFFFF", "border": "1px solid #E2E8F0", "borderRadius": "12px", "padding": "20px 10px", "textAlign": "center", "boxShadow": "0 4px 6px -1px rgba(0,0,0,0.03)"}))
 
-                # Styled PDF Metric Tiles
-                box_width = 0.075 
-                pad = 0.005 
-                x_offsets = np.linspace(0.025, 0.885, 10).tolist()
-                
-                pdf_metrics = [
-                    ("TOTAL SWINGS", f"{int(total_swings)}"),
-                    ("TOTAL HH", f"{int(total_hh)}"),
-                    ("HARD HIT %", f"{hh_pct:.1f}%"),
-                    ("AVG EV", f"{avg_ev:.1f} mph"),
-                    ("MAX EV", f"{max_ev:.1f} mph"),
-                    ("AVG LA", f"{avg_la:.1f}°"),
-                    ("AVG DIST", f"{avg_dist:.0f} ft"),
-                    ("MAX DIST", f"{max_dist:.0f} ft"),
-                    ("AVG SPIN", f"{avg_spin:.0f} rpm"),
-                    ("AVG HANG", f"{avg_hang:.2f} s")
-                ]
-                
-                for idx, (label, val) in enumerate(pdf_metrics):
-                    bbox = FancyBboxPatch((x_offsets[idx], 0.80), box_width, 0.06, boxstyle=f"round,pad={pad}", 
-                                          fc="#f8fafc", ec="#cbd5e1", lw=1.5, transform=fig.transFigure)
-                    fig.patches.append(bbox)
-                    center_x = x_offsets[idx] + (box_width / 2)
-                    fig.text(center_x, 0.84, label, fontsize=7.5, fontweight='bold', color='#64748b', ha='center')
-                    fig.text(center_x, 0.815, val, fontsize=12, fontweight='bold', color='#0f172a', ha='center')
+    fig_field = render_3d_stadium(batted_balls)
+    fig_zone = render_3d_strikezone(batted_balls)
+    fig_ev_field = render_2d_field_heatmap(batted_balls, metric='ExitSpeed')
+    fig_la_field = render_2d_field_heatmap(batted_balls, metric='Angle')
+    fig_ev_sz = render_2d_sz_heatmap(batted_balls, metric='ExitSpeed')
+    fig_la_sz = render_2d_sz_heatmap(batted_balls, metric='Angle')
 
-                # Row 1 Charts (Field Plots)
-                ax1_pdf = fig.add_axes([0.025, 0.42, 0.28, 0.34])
-                draw_field_skeleton(ax1_pdf, draw_infield=True)
-                for sub_df, color, lbl in [(gb, '#3b82f6', 'GB (<10°)'), (ld, '#22c55e', 'LD (10°-25°)'), (fb, '#ef4444', 'FB (>25°)')]:
-                    if not sub_df.empty:
-                        ax1_pdf.scatter(sub_df['Distance'] * np.sin(np.radians(sub_df['Direction'])), 
-                                        sub_df['Distance'] * np.cos(np.radians(sub_df['Direction'])), 
-                                        color=color, s=45, edgecolors='#0f172a', linewidths=0.5, label=lbl, zorder=6)
-                ax1_pdf.set_xlim(-300, 300); ax1_pdf.set_ylim(-30, 410); ax1_pdf.set_aspect('equal')
-                
-                ax1_pdf.set_xticks([]); ax1_pdf.set_yticks([])
-                for spine in ax1_pdf.spines.values():
-                    spine.set_visible(True)
-                    spine.set_edgecolor('black')
-                    spine.set_linewidth(1)
-                    
-                ax1_pdf.set_title("Batted Ball Profile", fontsize=11, fontweight='bold', pad=8)
-                ax1_pdf.legend(loc='lower left', frameon=True, fontsize=8)
+    display_cols = [c for c in ['PitchNo', 'Pitcher', 'TaggedPitchType', 'ExitSpeed', 'Angle', 'Direction', 'Distance', 'PlayResult'] if c in batted_balls.columns]
+    raw_table = dash_table.DataTable(
+        data=batted_balls[display_cols].sort_values(by='ExitSpeed', ascending=False).to_dict('records'),
+        columns=[{"name": i, "id": i} for i in display_cols],
+        page_size=15,
+        style_header={'backgroundColor': '#0F172A', 'color': 'white', 'fontWeight': 'bold'},
+        style_cell={'textAlign': 'center', 'padding': '10px', 'fontFamily': 'Inter'},
+        style_data_conditional=[{'if': {'row_index': 'odd'}, 'backgroundColor': '#F8FAFC'}]
+    )
 
-                ax2_pdf = fig.add_axes([0.345, 0.42, 0.28, 0.34])
-                draw_zoned_plot(ax2_pdf, batter_data, metric='ExitSpeed', title="Avg Exit Velocity Profile", vmin=75, vmax=100, cmap='coolwarm', unit='', is_ev=True)
+    return header, kpi_cards, fig_field, fig_zone, fig_ev_field, fig_la_field, fig_ev_sz, fig_la_sz, raw_table
 
-                ax3_pdf = fig.add_axes([0.665, 0.42, 0.28, 0.34])
-                draw_zoned_plot(ax3_pdf, batter_data, metric='Angle', title="Avg Launch Angle Profile", vmin=0, vmax=35, cmap='coolwarm', unit='°')
-
-                # Row 2 Charts (Strike Zones + Contact Position)
-                ax4_pdf = fig.add_axes([0.025, 0.06, 0.28, 0.34])
-                draw_strike_zone_plot(ax4_pdf, batter_data, metric='ExitSpeed', title="Avg EV by Pitch Location", vmin=75, vmax=100, cmap='coolwarm', is_ev=True)
-                
-                ax5_pdf = fig.add_axes([0.345, 0.06, 0.28, 0.34])
-                draw_strike_zone_plot(ax5_pdf, batter_data, metric='Angle', title="Avg LA by Pitch Location", vmin=0, vmax=35, cmap='coolwarm', unit='°')
-
-                ax6_pdf = fig.add_axes([0.665, 0.06, 0.28, 0.34])
-                draw_contact_plot(ax6_pdf, batter_data, title="Contact Depth Position")
-
-                fig.savefig(pdf_buffer, format='pdf', dpi=150)
-                plt.close(fig)
-                return pdf_buffer.getvalue()
-
-            st.divider()
-            st.markdown("### Export Report Documents")
-            pdf_bytes = create_pdf()
-            safe_name = selected_batter.replace(", ", "_").replace(" ", "_")
-            st.download_button(
-                label=f"📄 Download Professional PDF Report for {selected_batter}",
-                data=pdf_bytes,
-                file_name=f"BP_Analytics_Report_{safe_name}.pdf",
-                mime="application/pdf"
-            )
+if __name__ == '__main__':
+    app.run(debug=True)

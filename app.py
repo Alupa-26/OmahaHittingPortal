@@ -22,7 +22,7 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');
 
 html, body, [class*="css"] {
     font-family: 'Inter', sans-serif;
@@ -32,50 +32,108 @@ html, body, [class*="css"] {
     background-color: #F8FAFC;
 }
 
-/* Dark Slate Sidebar */
+/* Dark Slate Sidebar Background */
 [data-testid="stSidebar"] {
     background-color: #0F172A !important;
 }
-[data-testid="stSidebar"] * {
-    color: #FFFFFF;
+
+/* Sidebar Labels & Section Headers (Light on Dark Background) */
+[data-testid="stSidebar"] label p,
+[data-testid="stSidebar"] .sidebar-section-title {
+    color: #F8FAFC !important;
+    font-weight: 700 !important;
 }
-[data-testid="stSidebar"] .stSelectbox div[data-baseweb="select"] * {
+
+/* Selectbox Controls (Hitter Profile & Date Range) - Dark Font on Light Box */
+[data-testid="stSidebar"] div[data-baseweb="select"] > div {
+    background-color: #FFFFFF !important;
+    border: 1px solid #CBD5E1 !important;
+    border-radius: 8px !important;
+}
+[data-testid="stSidebar"] div[data-baseweb="select"] *,
+[data-testid="stSidebar"] div[data-baseweb="select"] span,
+[data-testid="stSidebar"] div[data-baseweb="select"] input {
     color: #0F172A !important;
+    font-weight: 700 !important;
 }
+[data-testid="stSidebar"] div[data-baseweb="select"] svg {
+    fill: #0F172A !important;
+}
+
+/* Open Dropdown Menu Options - Dark Font on White Background */
+div[data-baseweb="popover"] *,
+ul[data-testid="stSelectboxVirtualDropdown"] *,
+li[role="option"] * {
+    color: #0F172A !important;
+    font-weight: 600 !important;
+}
+ul[data-testid="stSelectboxVirtualDropdown"] {
+    background-color: #FFFFFF !important;
+}
+
+/* Reset Database Button - Dark Font on Light Box */
+[data-testid="stSidebar"] .stButton > button {
+    background-color: #FFFFFF !important;
+    color: #0F172A !important;
+    border: 2px solid #D71920 !important;
+    border-radius: 8px !important;
+    font-weight: 800 !important;
+    padding: 0.5rem 1rem !important;
+    width: 100% !important;
+}
+[data-testid="stSidebar"] .stButton > button p,
+[data-testid="stSidebar"] .stButton > button span {
+    color: #0F172A !important;
+    font-weight: 800 !important;
+}
+[data-testid="stSidebar"] .stButton > button:hover {
+    background-color: #FEE2E2 !important;
+    border-color: #B91C1C !important;
+}
+
+/* File Uploader Box */
 [data-testid="stSidebar"] [data-testid="stFileUploader"] section {
     background-color: #1E293B !important;
     border: 2px dashed #D71920 !important;
     border-radius: 8px !important;
 }
-[data-testid="stSidebar"] [data-testid="stFileUploader"] section * {
-    color: #FFFFFF !important;
+[data-testid="stSidebar"] [data-testid="stFileUploader"] section small,
+[data-testid="stSidebar"] [data-testid="stFileUploader"] section span {
+    color: #E2E8F0 !important;
 }
 [data-testid="stSidebar"] [data-testid="stFileUploader"] button {
-    background-color: #D71920 !important;
-    color: #FFFFFF !important;
-    border: none !important;
-    font-weight: 700 !important;
+    background-color: #FFFFFF !important;
+    color: #0F172A !important;
+    border: 1px solid #CBD5E1 !important;
+    font-weight: 800 !important;
+}
+[data-testid="stSidebar"] [data-testid="stFileUploader"] button * {
+    color: #0F172A !important;
+}
+/* Uploaded File Name Chip in Sidebar */
+[data-testid="stSidebar"] [data-testid="stFileUploaderFile"] * {
+    color: #E2E8F0 !important;
 }
 
 /* Header Banner */
 .omaha-header {
     background: linear-gradient(135deg, #0B0F19 0%, #1A2235 100%);
     border-radius: 16px;
-    padding: 30px 40px;
+    padding: 26px 36px;
     color: white;
-    margin-bottom: 25px;
+    margin-bottom: 22px;
     border-left: 8px solid #D71920;
     box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
 }
 .omaha-header h1 {
-    font-size: 42px;
+    font-size: 38px;
     font-weight: 900;
     margin: 0;
     letter-spacing: -1px;
     color: #FFFFFF;
 }
 .omaha-header .sub {
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 600;
     color: #94A3B8;
     letter-spacing: 1px;
@@ -85,15 +143,15 @@ html, body, [class*="css"] {
 /* KPI Grid */
 .kpi-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
-    gap: 15px;
-    margin-bottom: 30px;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 12px;
+    margin-bottom: 24px;
 }
 .kpi-card {
     background: #FFFFFF;
     border: 1px solid #E2E8F0;
     border-radius: 12px;
-    padding: 20px 10px;
+    padding: 16px 10px;
     text-align: center;
     box-shadow: 0 4px 6px -1px rgba(0,0,0,0.03);
 }
@@ -101,10 +159,10 @@ html, body, [class*="css"] {
     font-size: 11px;
     font-weight: 800;
     color: #64748B;
-    margin-bottom: 5px;
+    margin-bottom: 4px;
 }
 .kpi-val {
-    font-size: 26px;
+    font-size: 24px;
     font-weight: 900;
 }
 
@@ -115,7 +173,7 @@ button[data-baseweb="tab"] {
     padding: 10px 20px !important;
     margin-right: 6px !important;
     font-weight: 700 !important;
-    color: #475569 !important;
+    color: #0F172A !important;
 }
 button[data-baseweb="tab"][aria-selected="true"] {
     background-color: #FFFFFF !important;
@@ -149,6 +207,13 @@ SWING_CALLS = [
     'InPlay', 'Foul', 'FoulBall', 'FoulBallNotFieldable',
     'FoulBallFieldable', 'StrikeSwinging', 'FoulBunt'
 ]
+
+HIT_TYPE_COLORS = {
+    'Line Drive': '#D71920',   # Crimson Red
+    'Fly Ball': '#2563EB',     # Royal Blue
+    'Ground Ball': '#D97706',  # Amber Gold
+    'Pop Up': '#9333EA'        # Purple
+}
 
 
 def init_db():
@@ -194,6 +259,30 @@ def get_batter_side(df_batter):
     if side_str in ['switch', 's', 'shh', 'both']:
         return 'SHH'
     return "UNK"
+
+
+def classify_hit_type(row):
+    tagged = str(row.get('TaggedHitType', '')).strip().lower()
+    if tagged in ['linedrive', 'line_drive', 'line drive', 'ld']:
+        return 'Line Drive'
+    if tagged in ['flyball', 'fly_ball', 'fly ball', 'fb']:
+        return 'Fly Ball'
+    if tagged in ['groundball', 'ground_ball', 'ground ball', 'gb']:
+        return 'Ground Ball'
+    if tagged in ['popup', 'pop_up', 'pop up', 'pu', 'pop']:
+        return 'Pop Up'
+
+    angle = row.get('Angle')
+    if pd.isna(angle):
+        return 'Line Drive'
+    if angle < 10:
+        return 'Ground Ball'
+    elif angle < 25:
+        return 'Line Drive'
+    elif angle < 50:
+        return 'Fly Ball'
+    else:
+        return 'Pop Up'
 
 
 def assign_sz_zone(x, z):
@@ -253,191 +342,234 @@ def create_wedge_polygon(r_inner, r_outer, theta1, theta2, num_points=40):
 # -----------------------------------------------------------------------------
 def render_3d_stadium(df):
     fig = go.Figure()
-    grass_material = dict(ambient=0.8, diffuse=0.9, roughness=0.9, specular=0.1)
-    dirt_material = dict(ambient=0.9, diffuse=0.8, roughness=1.0, specular=0.0)
 
-    theta_arc = np.linspace(-np.pi / 4, np.pi / 4, 200)
-    for r in range(150, 401, 25):
-        x_out, y_out = r * np.sin(theta_arc), r * np.cos(theta_arc)
-        x_in, y_in = (r - 25) * np.sin(theta_arc[::-1]), (r - 25) * np.cos(theta_arc[::-1])
-        stripe_color = '#14532D' if (r // 25) % 2 == 0 else '#166534'
-        fig.add_trace(go.Mesh3d(
-            x=np.concatenate([x_out, x_in, [x_out[0]]]),
-            y=np.concatenate([y_out, y_in, [y_out[0]]]),
-            z=np.zeros(401),
-            color=stripe_color,
-            lighting=grass_material,
-            hoverinfo='skip',
-            showlegend=False
+    theta = np.linspace(-np.pi / 4, np.pi / 4, 90)
+
+    # 1. Outfield Grass Mowing Stripes (Using go.Surface so curved arcs render solidly)
+    for r_inner in range(150, 376, 25):
+        r_outer = min(r_inner + 25, 385)
+        r_grid, t_grid = np.meshgrid([r_inner, r_outer], theta)
+        x_surf = r_grid * np.sin(t_grid)
+        y_surf = r_grid * np.cos(t_grid)
+        z_surf = np.zeros_like(x_surf)
+        stripe_color = '#15803D' if ((r_inner // 25) % 2 == 0) else '#166534'
+        fig.add_trace(go.Surface(
+            x=x_surf, y=y_surf, z=z_surf,
+            surfacecolor=np.zeros_like(x_surf),
+            colorscale=[[0, stripe_color], [1, stripe_color]],
+            showscale=False, hoverinfo='skip', showlegend=False,
+            lighting=dict(ambient=0.85, diffuse=0.8, roughness=0.9, specular=0.05)
         ))
 
-    theta_full = np.linspace(0, 2 * np.pi, 100)
-    fig.add_trace(go.Mesh3d(
-        x=np.concatenate([[0], 145 * np.sin(np.linspace(-np.pi / 4, np.pi / 4, 100)), [0]]),
-        y=np.concatenate([[0], 145 * np.cos(np.linspace(-np.pi / 4, np.pi / 4, 100)), [0]]),
-        z=np.full(102, 0.1),
-        color='#8D6E63',
-        lighting=dirt_material,
-        hoverinfo='skip',
-        showlegend=False
-    ))
-    fig.add_trace(go.Mesh3d(
-        x=13 * np.sin(theta_full),
-        y=13 * np.cos(theta_full),
-        z=np.full(100, 0.15),
-        color='#8D6E63',
-        lighting=dirt_material,
-        hoverinfo='skip',
-        showlegend=False
-    ))
-    fig.add_trace(go.Mesh3d(
-        x=9 * np.sin(theta_full),
-        y=60.5 + 9 * np.cos(theta_full),
-        z=np.full(100, 0.15),
-        color='#8D6E63',
-        lighting=dirt_material,
-        hoverinfo='skip',
-        showlegend=False
+    # 2. Warning Track (385 ft to 400 ft)
+    r_wt, t_wt = np.meshgrid([385, 400], theta)
+    fig.add_trace(go.Surface(
+        x=r_wt * np.sin(t_wt), y=r_wt * np.cos(t_wt), z=np.full_like(r_wt, 0.05, dtype=float),
+        surfacecolor=np.zeros_like(r_wt),
+        colorscale=[[0, '#6D4C41'], [1, '#6D4C41']],
+        showscale=False, hoverinfo='skip', showlegend=False
     ))
 
-    fig.add_trace(go.Mesh3d(
-        x=np.concatenate([400 * np.sin(theta_arc), 385 * np.sin(theta_arc[::-1]), [400 * np.sin(theta_arc[0])]]),
-        y=np.concatenate([400 * np.cos(theta_arc), 385 * np.cos(theta_arc[::-1]), [400 * np.cos(theta_arc[0])]]),
-        z=np.full(401, 0.2),
-        color='#5D4037',
-        lighting=dirt_material,
-        hoverinfo='skip',
-        showlegend=False
+    # 3. Infield Dirt Arc (0 ft to 150 ft)
+    r_if, t_if = np.meshgrid([0, 150], theta)
+    fig.add_trace(go.Surface(
+        x=r_if * np.sin(t_if), y=r_if * np.cos(t_if), z=np.full_like(r_if, 0.08, dtype=float),
+        surfacecolor=np.zeros_like(r_if),
+        colorscale=[[0, '#A1887F'], [1, '#A1887F']],
+        showscale=False, hoverinfo='skip', showlegend=False
     ))
 
-    wall_x = np.concatenate([400 * np.sin(theta_arc), 400 * np.sin(theta_arc[::-1])])
-    wall_y = np.concatenate([400 * np.cos(theta_arc), 400 * np.cos(theta_arc[::-1])])
-    wall_z = np.concatenate([np.zeros(200), np.full(200, 15)])
-    fig.add_trace(go.Mesh3d(
-        x=wall_x, y=wall_y, z=wall_z,
-        color='rgba(15, 23, 42, 0.4)',
-        alphahull=0,
-        hoverinfo='skip',
-        showlegend=False
-    ))
-    fig.add_trace(go.Scatter3d(
-        x=400 * np.sin(theta_arc),
-        y=400 * np.cos(theta_arc),
-        z=np.full(200, 15),
-        mode='lines',
-        line=dict(color='#D71920', width=8),
-        hoverinfo='skip',
-        showlegend=False
+    # 4. Infield Grass Diamond (Inside Basepaths)
+    diamond_s = np.linspace(0, 1, 20)
+    u_grid, v_grid = np.meshgrid(diamond_s, diamond_s)
+    # 4 corners of inner grass diamond: (0, 22), (52, 63.6), (0, 108), (-52, 63.6)
+    p00 = np.array([0.0, 22.0])
+    p10 = np.array([52.0, 63.6])
+    p01 = np.array([-52.0, 63.6])
+    p11 = np.array([0.0, 108.0])
+    x_diam = (1 - u_grid) * (1 - v_grid) * p00[0] + u_grid * (1 - v_grid) * p10[0] + (1 - u_grid) * v_grid * p01[0] + u_grid * v_grid * p11[0]
+    y_diam = (1 - u_grid) * (1 - v_grid) * p00[1] + u_grid * (1 - v_grid) * p10[1] + (1 - u_grid) * v_grid * p01[1] + u_grid * v_grid * p11[1]
+    fig.add_trace(go.Surface(
+        x=x_diam, y=y_diam, z=np.full_like(x_diam, 0.15),
+        surfacecolor=np.zeros_like(x_diam),
+        colorscale=[[0, '#15803D'], [1, '#15803D']],
+        showscale=False, hoverinfo='skip', showlegend=False
     ))
 
-    fig.add_trace(go.Scatter3d(
-        x=[63.6, 0, -63.6],
-        y=[63.6, 127.2, 63.6],
-        z=[0.3, 0.3, 0.3],
-        mode='markers',
-        marker=dict(color='white', size=6, symbol='square'),
-        hoverinfo='skip',
-        showlegend=False
-    ))
-    fig.add_trace(go.Scatter3d(
-        x=[0, 283], y=[0, 283], z=[0.2, 0.2],
-        mode='lines',
-        line=dict(color='white', width=4),
-        hoverinfo='skip',
-        showlegend=False
-    ))
-    fig.add_trace(go.Scatter3d(
-        x=[0, -283], y=[0, 283], z=[0.2, 0.2],
-        mode='lines',
-        line=dict(color='white', width=4),
-        hoverinfo='skip',
-        showlegend=False
+    # 5. Pitcher's Mound Dirt Circle
+    theta_mound = np.linspace(0, 2 * np.pi, 40)
+    r_m, t_m = np.meshgrid([0, 9], theta_mound)
+    fig.add_trace(go.Surface(
+        x=r_m * np.sin(t_m), y=60.5 + r_m * np.cos(t_m), z=np.full_like(r_m, 0.25, dtype=float),
+        surfacecolor=np.zeros_like(r_m),
+        colorscale=[[0, '#8D6E63'], [1, '#8D6E63']],
+        showscale=False, hoverinfo='skip', showlegend=False
     ))
 
+    # 6. Outfield Wall (r=400 ft, height 0 to 12 ft) & Top Trim
+    z_wall, t_wall = np.meshgrid([0, 12], theta)
+    fig.add_trace(go.Surface(
+        x=400 * np.sin(t_wall), y=400 * np.cos(t_wall), z=z_wall,
+        surfacecolor=np.zeros_like(z_wall),
+        colorscale=[[0, '#0F172A'], [1, '#1E293B']],
+        opacity=0.85, showscale=False, hoverinfo='skip', showlegend=False
+    ))
+    fig.add_trace(go.Scatter3d(
+        x=400 * np.sin(theta), y=400 * np.cos(theta), z=np.full_like(theta, 12.2),
+        mode='lines', line=dict(color='#D71920', width=6), hoverinfo='skip', showlegend=False
+    ))
+
+    # 7. Foul Lines & Bases
+    fig.add_trace(go.Scatter3d(
+        x=[0, 400 * np.sin(np.pi / 4)], y=[0, 400 * np.cos(np.pi / 4)], z=[0.2, 0.2],
+        mode='lines', line=dict(color='white', width=4), hoverinfo='skip', showlegend=False
+    ))
+    fig.add_trace(go.Scatter3d(
+        x=[0, 400 * np.sin(-np.pi / 4)], y=[0, 400 * np.cos(-np.pi / 4)], z=[0.2, 0.2],
+        mode='lines', line=dict(color='white', width=4), hoverinfo='skip', showlegend=False
+    ))
+    fig.add_trace(go.Scatter3d(
+        x=[63.6, 0, -63.6, 0], y=[63.6, 127.2, 63.6, 0], z=[0.35, 0.35, 0.35, 0.35],
+        mode='markers', marker=dict(color='white', size=5, symbol='diamond'), hoverinfo='skip', showlegend=False
+    ))
+
+    # 8. Batted Ball Trajectories & Landing Markers Grouped by Hit Type
+    shown_in_legend = set()
     if not df.empty:
-        for _, row in df.iterrows():
-            dist = row.get('Distance')
-            direction = row.get('Direction')
-            angle = row.get('Angle')
-            ev = row.get('ExitSpeed')
-            if pd.isna(dist) or pd.isna(direction) or pd.isna(angle) or pd.isna(ev):
-                continue
-            t = np.linspace(0, 1, 60)
-            x_end = dist * np.sin(np.radians(direction))
-            y_end = dist * np.cos(np.radians(direction))
-            x_traj, y_traj = t * x_end, t * y_end
-            h_max = dist * np.tan(np.radians(max(0.1, angle))) * 0.25
-            z_traj = 4 * h_max * t * (1 - t)
+        df_plot = df.copy()
+        df_plot['HitCategory'] = df_plot.apply(classify_hit_type, axis=1)
 
-            color = '#D71920' if (ev >= 95 and 8 <= angle <= 32) else '#3B82F6' if ev >= 90 else '#94A3B8'
-            fig.add_trace(go.Scatter3d(
-                x=x_traj, y=y_traj, z=z_traj,
-                mode='lines',
-                line=dict(color=color, width=6),
-                hovertemplate=f"<b>EV:</b> {ev:.1f} mph<br><b>LA:</b> {angle:.1f}°<br><b>Dist:</b> {dist:.0f} ft<extra></extra>",
-                showlegend=False
-            ))
-            fig.add_trace(go.Scatter3d(
-                x=x_traj, y=y_traj, z=np.full(60, 0.3),
-                mode='lines',
-                line=dict(color='rgba(0,0,0,0.2)', width=2, dash='dot'),
-                hoverinfo='skip',
-                showlegend=False
-            ))
-            fig.add_trace(go.Scatter3d(
-                x=[x_end], y=[y_end], z=[0.3],
-                mode='markers',
-                marker=dict(color=color, size=7, line=dict(color='white', width=2)),
-                hoverinfo='skip',
-                showlegend=False
-            ))
+        # Ensure consistent legend order
+        for hit_cat in ['Line Drive', 'Fly Ball', 'Ground Ball', 'Pop Up']:
+            sub = df_plot[df_plot['HitCategory'] == hit_cat]
+            color = HIT_TYPE_COLORS[hit_cat]
+
+            if sub.empty:
+                # Dummy trace so legend always shows all 4 hit categories
+                fig.add_trace(go.Scatter3d(
+                    x=[None], y=[None], z=[None],
+                    mode='lines+markers',
+                    line=dict(color=color, width=5),
+                    marker=dict(color=color, size=6),
+                    name=hit_cat,
+                    legendgroup=hit_cat,
+                    showlegend=True
+                ))
+                continue
+
+            for _, row in sub.iterrows():
+                dist = row.get('Distance')
+                direction = row.get('Direction')
+                angle = row.get('Angle')
+                ev = row.get('ExitSpeed')
+                play_res = row.get('PlayResult', 'Undefined')
+                if pd.isna(dist) or pd.isna(direction) or pd.isna(angle) or pd.isna(ev):
+                    continue
+
+                t = np.linspace(0, 1, 50)
+                x_end = dist * np.sin(np.radians(direction))
+                y_end = dist * np.cos(np.radians(direction))
+                x_traj, y_traj = t * x_end, t * y_end
+                h_max = dist * np.tan(np.radians(max(1.0, angle))) * 0.25
+                z_traj = 4 * h_max * t * (1 - t) + 0.3
+
+                show_leg = hit_cat not in shown_in_legend
+                shown_in_legend.add(hit_cat)
+
+                hover_txt = (
+                    f"<b>{hit_cat}</b> ({play_res})<br>"
+                    f"<b>EV:</b> {ev:.1f} mph<br>"
+                    f"<b>LA:</b> {angle:.1f}°<br>"
+                    f"<b>Dist:</b> {dist:.0f} ft<extra></extra>"
+                )
+
+                # Flight Path
+                fig.add_trace(go.Scatter3d(
+                    x=x_traj, y=y_traj, z=z_traj,
+                    mode='lines',
+                    line=dict(color=color, width=5),
+                    name=hit_cat,
+                    legendgroup=hit_cat,
+                    showlegend=show_leg,
+                    hovertemplate=hover_txt
+                ))
+                # Landing Spot
+                fig.add_trace(go.Scatter3d(
+                    x=[x_end], y=[y_end], z=[0.4],
+                    mode='markers',
+                    marker=dict(color=color, size=6, line=dict(color='white', width=1.5)),
+                    name=hit_cat,
+                    legendgroup=hit_cat,
+                    showlegend=False,
+                    hovertemplate=hover_txt
+                ))
 
     fig.update_layout(
-        height=750,
+        height=480,
+        legend=dict(
+            title=dict(text="<b>Batted Ball Type</b>", font=dict(size=12, color="#0F172A")),
+            orientation="h",
+            yanchor="bottom",
+            y=0.92,
+            xanchor="center",
+            x=0.5,
+            bgcolor="rgba(255, 255, 255, 0.92)",
+            bordercolor="#CBD5E1",
+             borderwidth=1,
+            font=dict(size=12, color="#0F172A", family="Inter")
+        ),
         scene=dict(
             xaxis=dict(range=[-300, 300], visible=False),
-            yaxis=dict(range=[-20, 450], visible=False),
-            zaxis=dict(range=[0, 150], visible=False),
+            yaxis=dict(range=[-20, 430], visible=False),
+            zaxis=dict(range=[0, 140], visible=False),
             aspectmode='manual',
-            aspectratio=dict(x=1.3, y=1.3, z=0.3),
+            aspectratio=dict(x=1.25, y=1.25, z=0.32),
             camera=dict(
                 up=dict(x=0, y=0, z=1),
-                center=dict(x=0, y=0, z=0),
-                eye=dict(x=0, y=-1.5, z=0.6)
+                center=dict(x=0, y=0, z=-0.05),
+                eye=dict(x=0.0, y=-1.35, z=0.55)
             )
         ),
         margin=dict(l=0, r=0, b=0, t=0),
-        paper_bgcolor='rgba(0,0,0,0)'
+        paper_bgcolor='#FFFFFF'
     )
     return fig
 
 
 def render_3d_strikezone(df):
+    """
+    TrackMan V3 Coordinate System for ContactPosition:
+      - Origin (0,0,0) = Back apex (tip) of home plate on the ground
+      - ContactPositionX = Depth along X-axis toward pitcher (ft). Front edge of home plate = 1.417 ft (17 in).
+      - ContactPositionY = Vertical height above ground (ft), corresponding to PlateLocHeight.
+      - ContactPositionZ = Horizontal side-to-side across home plate (ft), corresponding to PlateLocSide.
+    """
     fig = go.Figure()
 
-    # Home plate: flat 17" edge at Y=1.417 (facing pitcher), apex at Y=0 (facing catcher)
+    # Home Plate: Apex at Y=0 (facing catcher), flat 17" front edge at Y=1.417 ft (facing pitcher)
     plate_x = [-0.708, 0.708, 0.708, 0.0, -0.708, -0.708]
     plate_y = [1.417, 1.417, 0.708, 0.0, 0.708, 1.417]
     fig.add_trace(go.Scatter3d(
         x=plate_x, y=plate_y, z=np.zeros(6),
         mode='lines',
         surfaceaxis=2,
-        surfacecolor='white',
+        surfacecolor='#FFFFFF',
         line=dict(color='#0F172A', width=6),
         hoverinfo='skip',
         showlegend=False
     ))
 
+    # 3D Strike Zone Prism (Front plane at Y=1.417 ft, Back plane at Y=0 ft)
     sz_z_lines = [1.5, 2.166, 2.833, 3.5]
     sz_x_lines = [-0.833, -0.277, 0.277, 0.833]
-    for y_plane in [0, 1.417]:
+    for y_plane in [0.0, 1.417]:
         fig.add_trace(go.Scatter3d(
             x=[-0.833, 0.833, 0.833, -0.833, -0.833],
             y=np.full(5, y_plane),
             z=[1.5, 1.5, 3.5, 3.5, 1.5],
             mode='lines',
             line=dict(
-                color='rgba(215, 25, 32, 0.9)' if y_plane == 1.417 else 'rgba(148, 163, 184, 0.5)',
+                color='rgba(215, 25, 32, 0.9)' if y_plane == 1.417 else 'rgba(148, 163, 184, 0.45)',
                 width=5
             ),
             hoverinfo='skip',
@@ -463,76 +595,108 @@ def render_3d_strikezone(df):
     for x in [-0.833, 0.833]:
         for z in [1.5, 3.5]:
             fig.add_trace(go.Scatter3d(
-                x=[x, x], y=[0, 1.417], z=[z, z],
+                x=[x, x], y=[0.0, 1.417], z=[z, z],
                 mode='lines',
-                line=dict(color='rgba(148, 163, 184, 0.5)', width=4),
+                line=dict(color='rgba(148, 163, 184, 0.45)', width=3),
                 hoverinfo='skip',
                 showlegend=False
             ))
 
     if not df.empty:
         df_cp = df.copy()
-        side_col = pd.to_numeric(df_cp.get('ContactPositionX'), errors='coerce')
+
+        # True TrackMan V3 Contact Coordinates:
+        # ContactPositionZ = Horizontal Side (ft)
+        # ContactPositionX = Depth in front of plate apex (ft)
+        # ContactPositionY = Vertical Height above ground (ft)
+        cp_side = pd.to_numeric(df_cp.get('ContactPositionZ'), errors='coerce')
         plate_side = pd.to_numeric(df_cp.get('PlateLocSide'), errors='coerce')
-        df_cp['Side'] = side_col.combine_first(plate_side)
+        df_cp['Side'] = cp_side.combine_first(plate_side)
 
-        depth_col = pd.to_numeric(df_cp.get('ContactPositionY'), errors='coerce')
-        df_cp['Depth'] = depth_col.fillna(1.417)
+        cp_depth = pd.to_numeric(df_cp.get('ContactPositionX'), errors='coerce')
+        df_cp['Depth'] = cp_depth.fillna(1.417)
 
-        height_col = pd.to_numeric(df_cp.get('ContactPositionZ'), errors='coerce')
+        cp_height = pd.to_numeric(df_cp.get('ContactPositionY'), errors='coerce')
         plate_height = pd.to_numeric(df_cp.get('PlateLocHeight'), errors='coerce')
-        df_cp['Height'] = height_col.combine_first(plate_height)
+        df_cp['Height'] = cp_height.combine_first(plate_height)
 
-        valid_cp = df_cp.dropna(subset=['Side', 'Height', 'Depth', 'ExitSpeed'])
+        valid_cp = df_cp.dropna(subset=['Side', 'Height', 'Depth', 'ExitSpeed']).copy()
 
         if not valid_cp.empty:
+            # Drop-lines to ground (Z=0) to clearly visualize contact depth vs home plate
+            drop_x, drop_y, drop_z = [], [], []
+            for _, r in valid_cp.iterrows():
+                drop_x.extend([r['Side'], r['Side'], None])
+                drop_y.extend([r['Depth'], r['Depth'], None])
+                drop_z.extend([0.0, r['Height'], None])
+
+            fig.add_trace(go.Scatter3d(
+                x=drop_x, y=drop_y, z=drop_z,
+                mode='lines',
+                line=dict(color='rgba(100, 116, 139, 0.35)', width=2, dash='dot'),
+                hoverinfo='skip',
+                showlegend=False
+            ))
+
+            # Ground shadow markers (Z=0)
+            fig.add_trace(go.Scatter3d(
+                x=valid_cp['Side'],
+                y=valid_cp['Depth'],
+                z=np.zeros(len(valid_cp)),
+                mode='markers',
+                marker=dict(color='rgba(15, 23, 42, 0.25)', size=4),
+                hoverinfo='skip',
+                showlegend=False
+            ))
+
+            # 3D Contact Points colored Blue (Low EV) to Red (High EV)
             fig.add_trace(go.Scatter3d(
                 x=valid_cp['Side'],
                 y=valid_cp['Depth'],
                 z=valid_cp['Height'],
                 mode='markers',
                 marker=dict(
-                    size=10,
+                    size=9,
                     color=valid_cp['ExitSpeed'],
-                    colorscale='Turbo',
+                    colorscale='RdBu_r',
                     cmin=70,
                     cmax=105,
                     showscale=True,
-                    colorbar=dict(title="EV (mph)", len=0.8, thickness=20),
-                    line=dict(color='black', width=1.5)
+                    colorbar=dict(title="EV (mph)", len=0.75, thickness=18),
+                    line=dict(color='#0F172A', width=1.5)
                 ),
                 hovertemplate=(
                     "<b>EV: %{marker.color:.1f} mph</b><br>"
-                    "Side: %{x:.2f} ft<br>"
-                    "Depth: %{y:.2f} ft<br>"
-                    "Height: %{z:.2f} ft<extra></extra>"
+                    "Horiz (ContactPositionZ): %{x:.2f} ft<br>"
+                    "Depth (ContactPositionX): %{y:.2f} ft<br>"
+                    "Height (ContactPositionY): %{z:.2f} ft<extra></extra>"
                 ),
-                name='Contact Point'
-            ))
-            fig.add_trace(go.Scatter3d(
-                x=valid_cp['Side'],
-                y=valid_cp['Depth'],
-                z=np.zeros(len(valid_cp)),
-                mode='markers',
-                marker=dict(color='rgba(0,0,0,0.15)', size=5),
-                hoverinfo='skip',
+                name='Contact Point',
                 showlegend=False
             ))
 
     fig.update_layout(
-        height=750,
+        height=480,
         scene=dict(
-            xaxis=dict(title='Side to Side (ft)', range=[-3, 3], gridcolor='#E2E8F0', backgroundcolor='#F8FAFC', showbackground=True),
-            yaxis=dict(title='Depth: Catcher ⬅️ Pitcher (ft)', range=[-1, 4], gridcolor='#E2E8F0', backgroundcolor='#F8FAFC', showbackground=True),
-            zaxis=dict(title='Height (ft)', range=[0, 5], gridcolor='#E2E8F0', backgroundcolor='#F8FAFC', showbackground=True),
+            xaxis=dict(title='Side (ContactPositionZ, ft)', range=[-2.5, 2.5], gridcolor='#E2E8F0', backgroundcolor='#F8FAFC', showbackground=True),
+            yaxis=dict(title='Depth: Catcher ⬅️ ➡️ Pitcher (ContactPositionX, ft)', range=[-0.5, 4.0], gridcolor='#E2E8F0', backgroundcolor='#F8FAFC', showbackground=True),
+            zaxis=dict(title='Height (ContactPositionY, ft)', range=[0, 4.8], gridcolor='#E2E8F0', backgroundcolor='#F8FAFC', showbackground=True),
             aspectmode='manual',
-            aspectratio=dict(x=1.2, y=1.2, z=0.9),
-            camera=dict(eye=dict(x=1.4, y=-1.6, z=0.8))
+            aspectratio=dict(x=1.1, y=1.3, z=0.95),
+            camera=dict(eye=dict(x=1.35, y=-1.55, z=0.75))
         ),
         margin=dict(l=0, r=0, b=0, t=0),
-        paper_bgcolor='rgba(0,0,0,0)'
+        paper_bgcolor='#FFFFFF'
     )
     return fig
+
+
+def get_blue_to_red_color(val, vmin, vmax, alpha=0.92):
+    """Returns a Blue (Low) -> Red (High) RGBA string."""
+    cmap = plt.get_cmap('coolwarm')
+    norm = mcolors.Normalize(vmin=vmin, vmax=vmax)
+    rgba = cmap(np.clip(norm(val), 0.0, 1.0))
+    return f'rgba({int(rgba[0]*255)}, {int(rgba[1]*255)}, {int(rgba[2]*255)}, {alpha})'
 
 
 def render_2d_field_heatmap(df, metric='ExitSpeed'):
@@ -563,21 +727,23 @@ def render_2d_field_heatmap(df, metric='ExitSpeed'):
         if df_copy['FieldZone'].notna().any():
             avgs = df_copy.groupby('FieldZone')[metric].mean()
 
+    # Blue (Low) -> Red (High) for both ExitSpeed and Angle
     vmin, vmax = (75, 100) if metric == 'ExitSpeed' else (0, 35)
-    cmap = plt.get_cmap('coolwarm' if metric == 'ExitSpeed' else 'viridis')
-    norm = mcolors.Normalize(vmin=vmin, vmax=vmax)
+    unit = ' mph' if metric == 'ExitSpeed' else '°'
 
     for z, params in zones.items():
         val = avgs.get(z, np.nan)
-        color, text_val = 'rgba(241, 245, 249, 0.4)', "<b>N/A</b>"
+        color, text_val = 'rgba(241, 245, 249, 0.5)', "<b>N/A</b>"
         if not pd.isna(val):
-            rgba = cmap(norm(val))
-            color = f'rgba({int(rgba[0]*255)}, {int(rgba[1]*255)}, {int(rgba[2]*255)}, 0.9)'
-            unit = ' mph' if metric == 'ExitSpeed' else '°'
+            color = get_blue_to_red_color(val, vmin, vmax, alpha=0.9)
             text_val = f"<b>{val:.1f}{unit}</b>"
 
         x_pts, y_pts = create_wedge_polygon(params['r'][0], params['r'][1], params['t'][0], params['t'][1])
-        fig.add_trace(go.Scatter(x=x_pts, y=y_pts, fill='toself', fillcolor=color, mode='lines', line=dict(color='white', width=1.5), hoverinfo='skip', showlegend=False))
+        fig.add_trace(go.Scatter(
+            x=x_pts, y=y_pts, fill='toself', fillcolor=color,
+            mode='lines', line=dict(color='white', width=1.5),
+            hoverinfo='skip', showlegend=False
+        ))
         mid_r = params['r'][0] + (params['r'][1] - params['r'][0]) / 2
         mid_t = np.radians(params['t'][0] + (params['t'][1] - params['t'][0]) / 2)
         fig.add_trace(go.Scatter(
@@ -585,17 +751,27 @@ def render_2d_field_heatmap(df, metric='ExitSpeed'):
             y=[mid_r * np.cos(mid_t)],
             mode='text',
             text=[text_val],
-            textfont=dict(color='black', size=14, family='Inter'),
+            textfont=dict(color='#0F172A', size=14, family='Inter'),
             hoverinfo='skip',
             showlegend=False
         ))
 
+    # Colorbar trace for Blue -> Red reference
+    fig.add_trace(go.Scatter(
+        x=[None], y=[None], mode='markers',
+        marker=dict(
+            colorscale='RdBu_r', cmin=vmin, cmax=vmax, showscale=True,
+            colorbar=dict(title="mph" if metric == 'ExitSpeed' else "deg", thickness=14, len=0.65)
+        ),
+        hoverinfo='skip', showlegend=False
+    ))
+
     title_label = "EXIT SPEED" if metric == 'ExitSpeed' else "LAUNCH ANGLE"
     fig.update_layout(
-        height=550,
+        height=480,
         xaxis=dict(visible=False, range=[-300, 300]),
         yaxis=dict(visible=False, range=[-20, 420], scaleanchor='x', scaleratio=1),
-        margin=dict(l=0, r=0, b=0, t=40),
+        margin=dict(l=10, r=40, b=10, t=45),
         title=dict(text=f"<b>AVERAGE {title_label} BY FIELD QUADRANT</b>", font=dict(size=14, family='Inter', color='#0F172A'), x=0.5, y=0.95),
         paper_bgcolor='white',
         plot_bgcolor='white'
@@ -638,38 +814,50 @@ def render_2d_sz_heatmap(df, metric='ExitSpeed'):
         if df_copy['SZ'].notna().any():
             avgs = df_copy.groupby('SZ')[metric].mean()
 
+    # Blue (Low) -> Red (High) for both ExitSpeed and Angle
     vmin, vmax = (75, 100) if metric == 'ExitSpeed' else (0, 35)
-    cmap = plt.get_cmap('coolwarm' if metric == 'ExitSpeed' else 'viridis')
-    norm = mcolors.Normalize(vmin=vmin, vmax=vmax)
 
     for z, r in sz_rects.items():
         val = avgs.get(z, np.nan)
-        color, text_val = 'rgba(241, 245, 249, 0.4)', "<b>N/A</b>"
+        color, text_val = 'rgba(241, 245, 249, 0.5)', "<b>N/A</b>"
         if not pd.isna(val):
-            rgba = cmap(norm(val))
-            color = f'rgba({int(rgba[0]*255)}, {int(rgba[1]*255)}, {int(rgba[2]*255)}, 0.95)'
+            color = get_blue_to_red_color(val, vmin, vmax, alpha=0.95)
             text_val = f"<b>{val:.1f}</b>"
 
         x_pts = [r['x'], r['x'] + r['w'], r['x'] + r['w'], r['x'], r['x']]
         y_pts = [r['y'], r['y'], r['y'] + r['h'], r['y'] + r['h'], r['y']]
-        line_color = 'white' if z.startswith('Z') else 'rgba(0,0,0,0)'
-        fig.add_trace(go.Scatter(x=x_pts, y=y_pts, fill='toself', fillcolor=color, mode='lines', line=dict(color=line_color, width=2), hoverinfo='skip', showlegend=False))
+        line_color = 'white' if z.startswith('Z') else 'rgba(148, 163, 184, 0.35)'
+        fig.add_trace(go.Scatter(
+            x=x_pts, y=y_pts, fill='toself', fillcolor=color,
+            mode='lines', line=dict(color=line_color, width=2),
+            hoverinfo='skip', showlegend=False
+        ))
         fig.add_trace(go.Scatter(
             x=[r['x'] + r['w'] / 2],
             y=[r['y'] + r['h'] / 2],
             mode='text',
             text=[text_val],
-            textfont=dict(color='black', size=15 if z.startswith('Z') else 11, family='Inter'),
+            textfont=dict(color='#0F172A', size=15 if z.startswith('Z') else 11, family='Inter'),
             hoverinfo='skip',
             showlegend=False
         ))
 
+    # Colorbar trace for Blue -> Red reference
+    fig.add_trace(go.Scatter(
+        x=[None], y=[None], mode='markers',
+        marker=dict(
+            colorscale='RdBu_r', cmin=vmin, cmax=vmax, showscale=True,
+            colorbar=dict(title="mph" if metric == 'ExitSpeed' else "deg", thickness=14, len=0.65)
+        ),
+        hoverinfo='skip', showlegend=False
+    ))
+
     title_label = "EXIT SPEED" if metric == 'ExitSpeed' else "LAUNCH ANGLE"
     fig.update_layout(
-        height=550,
+        height=480,
         xaxis=dict(visible=False, range=[-2, 2]),
-        yaxis=dict(visible=False, range=[0, 4.5], scaleanchor='x', scaleratio=1),
-        margin=dict(l=0, r=0, b=0, t=40),
+        yaxis=dict(visible=False, range=[0, 4.3], scaleanchor='x', scaleratio=1),
+        margin=dict(l=10, r=40, b=10, t=45),
         title=dict(text=f"<b>AVERAGE {title_label} BY PITCH LOCATION</b>", font=dict(size=14, family='Inter', color='#0F172A'), x=0.5, y=0.95),
         paper_bgcolor='white',
         plot_bgcolor='white'
@@ -731,12 +919,12 @@ def ingest_uploaded_files(uploaded_files):
 with st.sidebar:
     st.markdown(
         '<img src="https://upload.wikimedia.org/wikipedia/en/thumb/0/01/Omaha_Mavericks_logo.svg/1200px-Omaha_Mavericks_logo.svg.png" '
-        'style="width: 140px; display: block; margin: 0 auto 30px auto;">',
+        'style="width: 140px; display: block; margin: 0 auto 25px auto;">',
         unsafe_allow_html=True
     )
 
     st.markdown(
-        '<div style="color: #94A3B8; font-size: 13px; text-transform: uppercase; '
+        '<div class="sidebar-section-title" style="color: #94A3B8; font-size: 13px; text-transform: uppercase; '
         'letter-spacing: 1px; margin-bottom: 10px; font-weight: bold;">Data Ingestion</div>',
         unsafe_allow_html=True
     )
@@ -759,15 +947,15 @@ with st.sidebar:
         else:
             st.markdown(
                 '<div style="color: #4ADE80; font-size: 13px; font-weight: bold; margin-top: 8px;">'
-                '✅ Data ingested successfully.</div>',
+                '✅ Data ready in database.</div>',
                 unsafe_allow_html=True
             )
 
     st.markdown('<hr style="border-color: #334155;">', unsafe_allow_html=True)
 
     st.markdown(
-        '<div style="color: #94A3B8; font-size: 13px; text-transform: uppercase; '
-        'letter-spacing: 1px; margin-bottom: 15px; font-weight: bold;">Performance Filters</div>',
+        '<div class="sidebar-section-title" style="color: #94A3B8; font-size: 13px; text-transform: uppercase; '
+        'letter-spacing: 1px; margin-bottom: 12px; font-weight: bold;">Performance Filters</div>',
         unsafe_allow_html=True
     )
 
@@ -923,12 +1111,16 @@ else:
         with tab4:
             st.markdown("<h4 style='color:#0F172A; font-weight:800; margin-bottom:15px;'>Raw Event Log</h4>", unsafe_allow_html=True)
             display_cols = [
-                c for c in ['Date', 'PitchNo', 'Pitcher', 'TaggedPitchType', 'ExitSpeed', 'Angle', 'Direction', 'Distance', 'PlayResult']
+                c for c in [
+                    'Date', 'PitchNo', 'Pitcher', 'TaggedPitchType', 'ExitSpeed', 'Angle',
+                    'Direction', 'Distance', 'TaggedHitType', 'PlayResult',
+                    'ContactPositionX', 'ContactPositionY', 'ContactPositionZ'
+                ]
                 if c in batted_balls.columns
             ]
             table_df = batted_balls[display_cols].sort_values(by='ExitSpeed', ascending=False).copy()
-            for num_c in ['ExitSpeed', 'Angle', 'Direction', 'Distance']:
+            for num_c in ['ExitSpeed', 'Angle', 'Direction', 'Distance', 'ContactPositionX', 'ContactPositionY', 'ContactPositionZ']:
                 if num_c in table_df.columns:
-                    table_df[num_c] = table_df[num_c].round(1)
+                    table_df[num_c] = table_df[num_c].round(2)
 
-            st.dataframe(table_df, use_container_width=True, hide_index=True, height=550)
+            st.dataframe(table_df, use_container_width=True, hide_index=True, height=480)
